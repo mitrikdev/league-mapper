@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rift Diagram Studio</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar left-panel" aria-label="Tools">
+        <div class="brand">
+          <div class="brand-mark">R</div>
+          <div>
+            <h1>Rift Diagram Studio</h1>
+            <p>No login. JSON files only.</p>
+          </div>
+        </div>
+
+        <section class="panel-section">
+          <h2>Tools</h2>
+          <div class="tool-grid" role="toolbar" aria-label="Editor tools">
+            <button class="tool-button active" data-tool="select" title="Select and move" aria-label="Select and move">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l12 9-6 1.5L8 21z"/></svg>
+              <span>S</span>
+            </button>
+            <button class="tool-button" data-tool="draw" title="Draw path" aria-label="Draw path">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 5l3 3"/></svg>
+              <span>D</span>
+            </button>
+            <button class="tool-button" data-tool="erase" title="Erase item or path" aria-label="Erase item or path">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15l8-8 7 7-5 5H8z"/><path d="M8 19h12"/></svg>
+              <span>E</span>
+            </button>
+          </div>
+          <div id="draw-settings" class="draw-settings hidden">
+            <label>
+              <span>Brush width</span>
+              <input id="brush-width" type="range" min="1" max="7" value="4">
+            </label>
+            <div class="brush-colors" aria-label="Brush colors">
+              <button class="brush-color active" type="button" data-brush-color="#f0d66a" style="--swatch: #f0d66a" title="Pathing"></button>
+              <button class="brush-color" type="button" data-brush-color="#ef4b5c" style="--swatch: #ef4b5c" title="Danger"></button>
+              <button class="brush-color" type="button" data-brush-color="#36a3ff" style="--swatch: #36a3ff" title="Vision/control"></button>
+              <button class="brush-color" type="button" data-brush-color="#4fb879" style="--swatch: #4fb879" title="Safe movement"></button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h2>Add</h2>
+          <div class="palette">
+            <details class="palette-group" open>
+              <summary>Blue</summary>
+              <button class="palette-item" draggable="true" data-add="champion" data-team="blue">
+                <img src="assets/champion-blue.svg" alt="">
+                <span>Champion</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="clone" data-team="blue">
+                <img src="assets/clone-blue.svg" alt="">
+                <span>Clone</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="ward" data-team="blue">
+                <img src="assets/ward-blue.svg" alt="">
+                <span>Ward</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="minion" data-team="blue">
+                <img src="assets/minion-blue.svg" alt="">
+                <span>Minion</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="cannon" data-team="blue">
+                <img src="assets/cannon-blue.svg" alt="">
+                <span>Cannon minion</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="super-minion" data-team="blue">
+                <img src="assets/super-minion-blue.svg" alt="">
+                <span>Super minion</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="turret" data-team="blue">
+                <img src="assets/turret-blue.svg" alt="">
+                <span>Turret</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="inhibitor" data-team="blue">
+                <img src="assets/inhibitor-blue.svg" alt="">
+                <span>Inhibitor</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="pet" data-team="blue">
+                <img src="assets/pet-blue.svg" alt="">
+                <span>Pet</span>
+              </button>
+            </details>
+
+            <details class="palette-group">
+              <summary>Red</summary>
+              <button class="palette-item" draggable="true" data-add="champion" data-team="red">
+                <img src="assets/champion-red.svg" alt="">
+                <span>Champion</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="clone" data-team="red">
+                <img src="assets/clone-red.svg" alt="">
+                <span>Clone</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="ward" data-team="red">
+                <img src="assets/ward-red.svg" alt="">
+                <span>Ward</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="minion" data-team="red">
+                <img src="assets/minion-red.svg" alt="">
+                <span>Minion</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="cannon" data-team="red">
+                <img src="assets/cannon-red.svg" alt="">
+                <span>Cannon minion</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="super-minion" data-team="red">
+                <img src="assets/super-minion-red.svg" alt="">
+                <span>Super minion</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="turret" data-team="red">
+                <img src="assets/turret-red.svg" alt="">
+                <span>Turret</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="inhibitor" data-team="red">
+                <img src="assets/inhibitor-red.svg" alt="">
+                <span>Inhibitor</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="pet" data-team="red">
+                <img src="assets/pet-red.svg" alt="">
+                <span>Pet</span>
+              </button>
+            </details>
+
+            <details class="palette-group">
+              <summary>Camps</summary>
+              <button class="palette-item" draggable="true" data-add="wolves" data-team="neutral">
+                <img src="assets/wolves-neutral.svg" alt="">
+                <span>Wolves</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="gromp" data-team="neutral">
+                <img src="assets/gromp-neutral.svg" alt="">
+                <span>Gromp</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="krugs" data-team="neutral">
+                <img src="assets/krugs-neutral.svg" alt="">
+                <span>Krugs</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="raptors" data-team="neutral">
+                <img src="assets/raptors-neutral.svg" alt="">
+                <span>Raptors</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="red-brambleback" data-team="neutral">
+                <img src="assets/red-brambleback-neutral.svg" alt="">
+                <span>Red Brambleback</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="blue-sentinel" data-team="neutral">
+                <img src="assets/blue-sentinel-neutral.svg" alt="">
+                <span>Blue Sentinel</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="scuttler" data-team="neutral">
+                <img src="assets/scuttler-neutral.svg" alt="">
+                <span>Scuttler</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="scuttler-enhanced" data-team="neutral">
+                <img src="assets/scuttler-enhanced-neutral.svg" alt="">
+                <span>Void Rift Scuttler</span>
+              </button>
+            </details>
+            <details class="palette-group">
+              <summary>Dragons</summary>
+              <button class="palette-item" draggable="true" data-add="drake-infernal" data-team="neutral">
+                <img src="assets/drake-infernal-neutral.svg" alt="">
+                <span>Infernal drake</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="drake-mountain" data-team="neutral">
+                <img src="assets/drake-mountain-neutral.svg" alt="">
+                <span>Mountain drake</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="drake-ocean" data-team="neutral">
+                <img src="assets/drake-ocean-neutral.svg" alt="">
+                <span>Ocean drake</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="drake-cloud" data-team="neutral">
+                <img src="assets/drake-cloud-neutral.svg" alt="">
+                <span>Cloud drake</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="drake-hextech" data-team="neutral">
+                <img src="assets/drake-hextech-neutral.svg" alt="">
+                <span>Hextech drake</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="drake-chemtech" data-team="neutral">
+                <img src="assets/drake-chemtech-neutral.svg" alt="">
+                <span>Chemtech drake</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="drake-elder" data-team="neutral">
+                <img src="assets/drake-elder-neutral.svg" alt="">
+                <span>Elder drake</span>
+              </button>
+            </details>
+            <details class="palette-group">
+              <summary>Rift</summary>
+              <button class="palette-item" draggable="true" data-add="voidgrubs" data-team="neutral">
+                <img src="assets/voidgrubs-neutral.svg" alt="">
+                <span>Voidgrubs</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="rift-herald" data-team="neutral">
+                <img src="assets/rift-herald-neutral.svg" alt="">
+                <span>Rift Herald</span>
+              </button>
+              <button class="palette-item" draggable="true" data-add="baron" data-team="neutral">
+                <img src="assets/baron-neutral.svg" alt="">
+                <span>Baron</span>
+              </button>
+            </details>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h2>View</h2>
+          <label class="check-row">
+            <input id="toggle-grid" type="checkbox" checked>
+            <span>Grid</span>
+          </label>
+          <label class="check-row">
+            <input id="toggle-sight" type="checkbox">
+            <span>Sight overlay</span>
+          </label>
+          <label class="check-row">
+            <input id="toggle-ranges" type="checkbox" checked>
+            <span>Vision ranges</span>
+          </label>
+          <label class="check-row">
+            <input id="toggle-labels" type="checkbox" checked>
+            <span>Labels</span>
+          </label>
+          <div class="filter-grid" aria-label="Layer filters">
+            <label><input type="checkbox" data-filter="blue" checked><span>Blue</span></label>
+            <label><input type="checkbox" data-filter="red" checked><span>Red</span></label>
+            <label><input type="checkbox" data-filter="neutral" checked><span>Neutral</span></label>
+            <label><input type="checkbox" data-filter="ward" checked><span>Wards</span></label>
+            <label><input type="checkbox" data-filter="minion" checked><span>Minions</span></label>
+            <label><input type="checkbox" data-filter="drawings" checked><span>Drawings</span></label>
+          </div>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="file-actions">
+            <button id="new-map" class="secondary">New</button>
+            <button id="save-json" class="primary">Save JSON</button>
+            <button id="load-json" class="secondary">Load JSON</button>
+            <button id="export-png" class="secondary">Export PNG</button>
+            <input id="file-input" type="file" accept="application/json,.json" hidden>
+          </div>
+          <div class="status">
+            <div class="zoom-presets" aria-label="Zoom presets">
+              <button type="button" data-zoom-preset="top">Top</button>
+              <button type="button" data-zoom-preset="rift">Rift</button>
+              <button type="button" data-zoom-preset="mid">Mid</button>
+              <button type="button" data-zoom-preset="dragon">Drag</button>
+              <button type="button" data-zoom-preset="bot">Bot</button>
+            </div>
+            <input id="zoom-input" class="zoom-input" type="number" min="25" max="1000" value="100" aria-label="Zoom percent">
+            <span>%</span>
+            <input id="zoom" type="range" min="25" max="1000" value="100" aria-label="Zoom">
+          </div>
+        </header>
+
+        <div class="canvas-wrap">
+          <div id="diagram" class="diagram" tabindex="0" aria-label="Rift diagram canvas">
+            <img class="map-bg" src="assets/sr.png" alt="" draggable="false">
+            <img id="sight-layer" class="sight-layer hidden" src="assets/sr sight.jpeg" alt="" draggable="false">
+            <div id="grid-layer" class="grid-layer" aria-hidden="true"></div>
+            <svg id="draw-layer" class="draw-layer" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"></svg>
+            <div id="object-layer" class="object-layer"></div>
+          </div>
+        </div>
+      </main>
+
+      <aside class="sidebar right-panel" aria-label="Properties">
+        <section class="panel-section">
+          <h2>Selection</h2>
+          <div id="empty-state" class="empty-state">Select an item.</div>
+          <div id="properties" class="properties hidden">
+            <label>
+              <span>Label</span>
+              <input id="prop-label" type="text" maxlength="24">
+            </label>
+            <label>
+              <span>Size</span>
+              <input id="prop-size" type="range" min="1" max="8" value="3">
+            </label>
+            <label class="cloak-toggle">
+              <input id="prop-cloaked" type="checkbox">
+              <span>Cloaked</span>
+            </label>
+            <label>
+              <span>Vision</span>
+              <input id="prop-range" type="range" min="0" max="220" value="115">
+            </label>
+            <div class="segmented">
+              <button data-team-set="blue">Blue</button>
+              <button data-team-set="red">Red</button>
+              <button data-team-set="neutral">Neutral</button>
+            </div>
+          </div>
+          <div id="selection-bulk" class="selection-bulk hidden">
+            <button id="duplicate" class="secondary wide">Duplicate</button>
+            <button id="delete" class="danger wide">Delete</button>
+            <div class="selection-actions">
+              <button type="button" data-selection-action="align-x" title="Align horizontally">Align X</button>
+              <button type="button" data-selection-action="align-y" title="Align vertically">Align Y</button>
+              <button type="button" data-selection-action="distribute-x" title="Distribute horizontally">Dist X</button>
+              <button type="button" data-selection-action="distribute-y" title="Distribute vertically">Dist Y</button>
+              <button type="button" data-selection-action="front" title="Bring forward">Front</button>
+              <button type="button" data-selection-action="back" title="Send backward">Back</button>
+              <button type="button" data-selection-action="group" title="Group selected">Group</button>
+              <button type="button" data-selection-action="ungroup" title="Ungroup selected">Ungroup</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h2>Layers</h2>
+          <div id="layer-list" class="layer-list"></div>
+        </section>
+      </aside>
+    </div>
+
+    <div id="new-confirm-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="new-confirm-title">
+      <div class="modal">
+        <h2 id="new-confirm-title">Start a new map?</h2>
+        <p>Current tokens and drawn paths will be cleared.</p>
+        <div class="modal-actions">
+          <button id="new-cancel" class="secondary">Cancel</button>
+          <button id="new-save-proceed" class="primary">Save and Proceed</button>
+          <button id="new-proceed" class="danger">Proceed</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

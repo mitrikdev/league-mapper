@@ -799,8 +799,8 @@ function normalizeJsonFilename(filename) {
   return trimmed.toLowerCase().endsWith(".json") ? trimmed : `${trimmed}.json`;
 }
 
-function requestSaveFilename(defaultName = "rift-diagram.json") {
-  return normalizeJsonFilename(window.prompt("Save map JSON as:", defaultName));
+function requestSaveFilename(defaultName = "rift-diagram") {
+  return normalizeJsonFilename(window.prompt("Save Mapstate as:", defaultName));
 }
 
 function saveJson(filename = requestSaveFilename()) {

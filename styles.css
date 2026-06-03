@@ -284,13 +284,28 @@ h1 {
 }
 
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid var(--line);
   background: #1c2226;
   padding: 10px 14px;
+}
+
+.document-title {
+  max-width: 360px;
+  overflow: hidden;
+  color: #e6efeb;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  justify-self: end;
 }
 
 .file-actions,
@@ -298,6 +313,37 @@ h1 {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.menu-button {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 900;
+  display: grid;
+  min-width: 180px;
+  overflow: hidden;
+  border: 1px solid #5c6970;
+  border-radius: 6px;
+  background: #171d20;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+}
+
+.dropdown-menu button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.dropdown-menu button:hover {
+  background: #2c3940;
 }
 
 .zoom-presets {

@@ -216,6 +216,7 @@
 
         <section class="panel-section">
           <h2>View</h2>
+          <button id="home-view" class="secondary wide" type="button">Home view</button>
           <label class="check-row">
             <input id="toggle-grid" type="checkbox" checked>
             <span>Grid</span>
@@ -246,12 +247,19 @@
       <main class="workspace">
         <header class="topbar">
           <div class="file-actions">
-            <button id="new-map" class="secondary">New</button>
+            <div class="menu-button">
+              <button id="new-map" class="secondary">New</button>
+              <div id="new-menu" class="dropdown-menu hidden">
+                <button type="button" data-new-mode="default">New default setup</button>
+                <button type="button" data-new-mode="blank">New blank</button>
+              </div>
+            </div>
             <button id="save-json" class="primary">Save Rift Diagram</button>
             <button id="load-json" class="secondary">Load Rift Diagram</button>
             <button id="export-png" class="secondary">Export PNG</button>
             <input id="file-input" type="file" accept="application/json,.json" hidden>
           </div>
+          <h2 id="document-title" class="document-title">Game Start</h2>
           <div class="status">
             <div class="zoom-presets" aria-label="Zoom presets">
               <button type="button" data-zoom-preset="top">Top</button>
@@ -339,6 +347,8 @@
       </div>
     </div>
 
+    <script src="assets/export-assets.js"></script>
+    <script src="assets/game-start-state.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

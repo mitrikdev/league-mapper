@@ -7,11 +7,13 @@ const fileInput = document.querySelector("#file-input");
 const props = document.querySelector("#properties");
 const emptyState = document.querySelector("#empty-state");
 const selectionBulk = document.querySelector("#selection-bulk");
+const documentTitle = document.querySelector("#document-title");
 const zoomSlider = document.querySelector("#zoom");
 const zoomInput = document.querySelector("#zoom-input");
 const drawSettings = document.querySelector("#draw-settings");
 const brushWidthInput = document.querySelector("#brush-width");
 const newConfirmModal = document.querySelector("#new-confirm-modal");
+const newMenu = document.querySelector("#new-menu");
 const contextMenu = document.createElement("div");
 const quickViewMenu = document.createElement("div");
 const selectionBox = document.createElement("div");
@@ -54,6 +56,8 @@ let suppressNextContextMenu = false;
 let lastLayerClick = { id: null, time: 0 };
 let historyDragStarted = false;
 let quickViewDrag = null;
+let pendingNewMode = "default";
+let currentDocumentTitle = "Game Start";
 
 contextMenu.className = "context-menu hidden";
 document.body.appendChild(contextMenu);
@@ -566,6 +570,7 @@ function showQuickViewMenu(event) {
         <button type="button" data-quick-action="dragon">Dragon</button>
         <button type="button" data-quick-action="bot">Bot</button>
         <button type="button" data-quick-action="center">Center</button>
+        <button type="button" data-quick-action="home">Home</button>
         <button type="button" data-quick-action="zoom-100">100%</button>
         <button type="button" data-quick-action="zoom-700">700%</button>
       </div>
@@ -639,6 +644,9 @@ function runQuickViewAction(action) {
 
   if (action === "center") {
     setZoomAtMapPercent(zoom, 50, 50);
+  }
+  if (action === "home") {
+    resetCamera();
   }
   if (action === "zoom-100") {
     setZoomAtMapPercent(100, 50, 50);
@@ -783,6 +791,15 @@ function centerMapOnItem(item) {
   setZoomAtMapPercent(zoom, item.x, item.y);
 }
 
+function resetCamera() {
+  zoom = 100;
+  panX = 0;
+  panY = 0;
+  applyViewportTransform();
+  zoomSlider.value = String(zoom);
+  zoomInput.value = String(zoom);
+}
+
 function download(filename, content, type) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -791,6 +808,23 @@ function download(filename, content, type) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function titleFromFilename(filename) {
+  return String(filename || "Untitled Rift Diagram").replace(/\.[^/.]+$/, "");
+}
+
+function safeFilename(value, fallback = "rift-diagram") {
+  const cleaned = String(value || "")
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+    .replace(/\s+/g, " ");
+  return cleaned || fallback;
+}
+
+function setDocumentTitle(title) {
+  currentDocumentTitle = title || "Untitled Rift Diagram";
+  documentTitle.textContent = currentDocumentTitle;
 }
 
 function normalizeJsonFilename(filename) {
@@ -806,6 +840,7 @@ function requestSaveFilename(defaultName = "rift-diagram") {
 function saveJson(filename = requestSaveFilename()) {
   if (!filename) return false;
   download(filename, JSON.stringify(state, null, 2), "application/json");
+  setDocumentTitle(titleFromFilename(filename));
   return true;
 }
 
@@ -814,7 +849,23 @@ function resetMap({ record = true } = {}) {
   seedDefaultMap();
 }
 
+function resetBlankMap({ record = true } = {}) {
+  if (record) recordHistory();
+  state = { version: 1, items: [], paths: [] };
+  clearSelection();
+  setDocumentTitle("Untitled Rift Diagram");
+  render();
+}
+
 function seedDefaultMap() {
+  if (window.DEFAULT_START_STATE) {
+    state = normalizeState(cloneState(window.DEFAULT_START_STATE));
+    clearSelection();
+    setDocumentTitle("Game Start");
+    render();
+    return;
+  }
+
   const items = [];
   // const add = (type, team, x, y, label) => {
   //   items.push(createItem(type, team, x, y, label ? { label } : {}));
@@ -854,10 +905,12 @@ function seedDefaultMap() {
 
   state = { version: 1, items, paths: [] };
   clearSelection();
+  setDocumentTitle("Game Start");
   render();
 }
 
-function showNewConfirm() {
+function showNewConfirm(mode = "default") {
+  pendingNewMode = mode;
   newConfirmModal.classList.remove("hidden");
 }
 
@@ -873,40 +926,124 @@ function loadJson(file) {
     undoStack = [];
     redoStack = [];
     clearSelection();
+    setDocumentTitle(titleFromFilename(file.name));
     render();
   };
   reader.readAsText(file);
 }
 
+function exportAssetUrl(src) {
+  return window.EXPORT_ASSETS?.[src] || src;
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = exportAssetUrl(src);
+  });
+}
+
+function exportTeamColor(team) {
+  if (team === "blue") return "rgba(54, 163, 255, 0.22)";
+  if (team === "red") return "rgba(239, 75, 92, 0.22)";
+  return "rgba(214, 172, 85, 0.22)";
+}
+
 async function exportPng() {
-  const serializer = new XMLSerializer();
-  const clone = diagram.cloneNode(true);
-  clone.style.transform = "none";
-  clone.querySelectorAll(".selected").forEach((node) => node.classList.remove("selected"));
-  const markup = serializer.serializeToString(clone);
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200">
-      <foreignObject width="100%" height="100%">${markup}</foreignObject>
-    </svg>`;
-  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-  const image = new Image();
-  image.onload = () => {
+  try {
+    const size = 1600;
     const canvas = document.createElement("canvas");
-    canvas.width = 1200;
-    canvas.height = 1200;
+    canvas.width = size;
+    canvas.height = size;
     const context = canvas.getContext("2d");
-    context.drawImage(image, 0, 0);
-    URL.revokeObjectURL(url);
-    canvas.toBlob((blob) => {
+
+    const mapImage = await loadImage("assets/sr-export.jpg");
+    context.drawImage(mapImage, 0, 0, size, size);
+
+    if (!document.querySelector("#sight-layer").classList.contains("hidden")) {
+      const sightImage = await loadImage("assets/sr sight.jpeg");
+      context.globalAlpha = 0.88;
+      context.drawImage(sightImage, 0, 0, size, size);
+      context.globalAlpha = 1;
+    }
+
+    if (filters.drawings) {
+      for (const path of state.paths) {
+        if (!path.points?.length) continue;
+        context.beginPath();
+        path.points.forEach((point, index) => {
+          const x = (point.x / 100) * size;
+          const y = (point.y / 100) * size;
+          if (index === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        });
+        context.strokeStyle = path.color || "#f0d66a";
+        context.lineWidth = (path.width || 7) * 1.6;
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.stroke();
+      }
+    }
+
+    for (const item of state.items) {
+      if (item.hidden) continue;
+      if (item.team && filters[item.team] === false) continue;
+      if (item.type === "ward" && !filters.ward) continue;
+      if ((item.type === "minion" || item.type === "cannon" || item.type === "super-minion") && !filters.minion) continue;
+
+      const image = await loadImage(assetFor(item));
+      const iconSize = Math.max(item.size * 4, 6) * 3;
+      const x = (item.x / 100) * size - iconSize / 2;
+      const y = (item.y / 100) * size - iconSize / 2;
+      const centerX = x + iconSize / 2;
+      const centerY = y + iconSize / 2;
+
+      if (item.range > 0 && !diagram.classList.contains("hide-ranges")) {
+        const diameter = (item.range / 1000) * size;
+        context.beginPath();
+        context.arc(centerX, centerY, diameter / 2, 0, Math.PI * 2);
+        context.strokeStyle = exportTeamColor(item.team);
+        context.lineWidth = 3.2;
+        context.stroke();
+      }
+
+      context.globalAlpha = (item.opacity / 100) * (item.cloaked ? 0.4 : 1);
+      context.drawImage(image, x, y, iconSize, iconSize);
+      context.globalAlpha = 1;
+
+      if (!diagram.classList.contains("hide-labels")) {
+        context.font = "bold 18px system-ui, sans-serif";
+        context.textAlign = "center";
+        context.lineWidth = 4;
+        context.strokeStyle = "rgba(0,0,0,.75)";
+        context.fillStyle = "#f3f6f2";
+        const labelY = y + iconSize + 18;
+        context.strokeText(item.label, centerX, labelY);
+        context.fillText(item.label, centerX, labelY);
+      }
+    }
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((result) => {
+        if (result) resolve(result);
+        else reject(new Error("Canvas did not produce a PNG blob."));
+      }, "image/png");
+    });
+
+    {
       const pngUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = pngUrl;
-      link.download = "rift-diagram.png";
+      link.download = `${safeFilename(currentDocumentTitle)}.png`;
       link.click();
       URL.revokeObjectURL(pngUrl);
-    });
-  };
-  image.src = url;
+    }
+  } catch (error) {
+    console.error(error);
+    alert("PNG export failed. Try refreshing the app and exporting again.");
+  }
 }
 
 document.querySelectorAll(".tool-button").forEach((button) => {
@@ -1247,19 +1384,35 @@ document.querySelectorAll("[data-selection-action]").forEach((button) => {
 });
 
 document.querySelector("#delete").addEventListener("click", deleteSelected);
-document.querySelector("#new-map").addEventListener("click", showNewConfirm);
+document.querySelector("#new-map").addEventListener("click", () => {
+  newMenu.classList.toggle("hidden");
+});
+newMenu.addEventListener("click", (event) => {
+  const mode = event.target.closest("[data-new-mode]")?.dataset.newMode;
+  if (!mode) return;
+  newMenu.classList.add("hidden");
+  showNewConfirm(mode);
+});
 document.querySelector("#save-json").addEventListener("click", () => saveJson());
 document.querySelector("#load-json").addEventListener("click", () => fileInput.click());
 document.querySelector("#export-png").addEventListener("click", exportPng);
 document.querySelector("#new-cancel").addEventListener("click", hideNewConfirm);
 document.querySelector("#new-proceed").addEventListener("click", () => {
   hideNewConfirm();
-  resetMap();
+  if (pendingNewMode === "blank") {
+    resetBlankMap();
+  } else {
+    resetMap();
+  }
 });
 document.querySelector("#new-save-proceed").addEventListener("click", () => {
   if (!saveJson()) return;
   hideNewConfirm();
-  resetMap();
+  if (pendingNewMode === "blank") {
+    resetBlankMap();
+  } else {
+    resetMap();
+  }
 });
 fileInput.addEventListener("change", () => {
   if (fileInput.files[0]) loadJson(fileInput.files[0]);
@@ -1269,6 +1422,7 @@ fileInput.addEventListener("change", () => {
 document.querySelector("#toggle-grid").addEventListener("change", (event) => {
   diagram.classList.toggle("hide-grid", !event.target.checked);
 });
+document.querySelector("#home-view").addEventListener("click", resetCamera);
 document.querySelector("#toggle-sight").addEventListener("change", (event) => {
   document.querySelector("#sight-layer").classList.toggle("hidden", !event.target.checked);
 });
@@ -1438,6 +1592,9 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("pointerdown", (event) => {
+  if (!event.target.closest(".menu-button")) {
+    newMenu.classList.add("hidden");
+  }
   if (!event.target.closest(".context-menu") && !event.target.closest("#diagram")) {
     hideContextMenu();
   }

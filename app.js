@@ -800,7 +800,7 @@ function normalizeJsonFilename(filename) {
 }
 
 function requestSaveFilename(defaultName = "rift-diagram") {
-  return normalizeJsonFilename(window.prompt("Save Mapstate as:", defaultName));
+  return normalizeJsonFilename(window.prompt("Save Rift Diagram as:", defaultName));
 }
 
 function saveJson(filename = requestSaveFilename()) {

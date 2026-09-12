@@ -54,7 +54,6 @@ let panDrag = null;
 let boxSelect = null;
 let suppressNextContextMenu = false;
 let lastLayerClick = { id: null, time: 0 };
-let historyDragStarted = false;
 let quickViewDrag = null;
 let pendingNewMode = "default";
 let currentDocumentTitle = "Game Start";
@@ -164,7 +163,7 @@ function selectItemsInBox(start, end) {
   const maxX = Math.max(start.x, end.x);
   const minY = Math.min(start.y, end.y);
   const maxY = Math.max(start.y, end.y);
-  const matched = state.items.filter((item) => !item.hidden && !item.locked && (
+  const matched = state.items.filter((item) => isItemVisible(item) && !item.locked && (
     item.x >= minX && item.x <= maxX && item.y >= minY && item.y <= maxY
   ));
 
@@ -207,10 +206,10 @@ function selectedItems() {
   return state.items.filter((item) => selectedIds.has(item.id));
 }
 
-function selectOnly(id) {
+function selectOnly(id, { visibleOnly = false } = {}) {
   const item = state.items.find((candidate) => candidate.id === id);
   if (item?.groupId) {
-    const groupIds = state.items.filter((candidate) => candidate.groupId === item.groupId).map((candidate) => candidate.id);
+    const groupIds = state.items.filter((candidate) => candidate.groupId === item.groupId && (!visibleOnly || isItemVisible(candidate))).map((candidate) => candidate.id);
     selectedId = id;
     selectedIds = new Set(groupIds);
     return;
@@ -230,82 +229,32 @@ function clearSelection() {
   selectedIds.clear();
 }
 
-function cloneState(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
 function normalizeState(nextState) {
-  return {
-    version: 1,
-    items: Array.isArray(nextState.items) ? nextState.items.map((item) => ({
-      ...defaultItemState,
-      ...item,
-      hidden: Boolean(item.hidden),
-      locked: Boolean(item.locked),
-      cloaked: Boolean(item.cloaked),
-      groupId: item.groupId || null
-    })) : [],
-    paths: Array.isArray(nextState.paths) ? nextState.paths.map((path) => ({
-      color: path.color || "#f0d66a",
-      width: path.width || 7,
-      points: Array.isArray(path.points) ? path.points : []
-    })) : []
-  };
+  return DiagramData.normalizeState(nextState, Object.keys(defaults));
+}
+function isItemVisible(item, currentFilters = filters) {
+  if (item.hidden || currentFilters[item.team] === false) return false;
+  if (item.type === "ward" && !currentFilters.ward) return false;
+  if (["minion", "cannon", "super-minion"].includes(item.type) && !currentFilters.minion) return false;
+  return true;
 }
 
-function selectionSnapshot() {
-  return {
-    selectedId,
-    selectedIds: [...selectedIds]
-  };
-}
-
-function restoreSelection(snapshot) {
-  selectedId = snapshot?.selectedId || null;
-  selectedIds = new Set(snapshot?.selectedIds || []);
-}
-
-function snapshotEditor() {
-  return {
-    state: cloneState(state),
-    selection: selectionSnapshot()
-  };
-}
-
-function restoreEditor(snapshot) {
-  isRestoringHistory = true;
-  state = normalizeState(cloneState(snapshot.state));
-  restoreSelection(snapshot.selection);
+function setLayerFilter(key, checked) {
+  filters[key] = checked;
+  const visibleIds = new Set(state.items.filter((item) => isItemVisible(item)).map((item) => item.id));
+  selectedIds = new Set([...selectedIds].filter((id) => visibleIds.has(id)));
+  if (!selectedIds.has(selectedId)) selectedId = selectedItems().at(-1)?.id || null;
+  const sidebarFilter = document.querySelector(`[data-filter="${key}"]`);
+  if (sidebarFilter) sidebarFilter.checked = checked;
+  syncQuickViewChecks();
   render();
-  isRestoringHistory = false;
-}
-
-function recordHistory() {
-  if (isRestoringHistory) return;
-  undoStack.push(snapshotEditor());
-  redoStack = [];
-}
-
-function undoEditor() {
-  if (!undoStack.length) return;
-  redoStack.push(snapshotEditor());
-  restoreEditor(undoStack.pop());
-}
-
-function redoEditor() {
-  if (!redoStack.length) return;
-  undoStack.push(snapshotEditor());
-  restoreEditor(redoStack.pop());
 }
 
 function render() {
   objectLayer.innerHTML = "";
 
   for (const item of state.items) {
-    if (item.hidden) continue;
-    if (item.team && filters[item.team] === false) continue;
-    if (item.type === "ward" && !filters.ward) continue;
-    if ((item.type === "minion" || item.type === "cannon" || item.type === "super-minion") && !filters.minion) continue;
+    if (!isItemVisible(item)) continue;
     const iconSize = Math.max(item.size * 4, 6);
     const hitSize = Math.max(iconSize + 8, 16);
     const token = document.createElement("button");
@@ -374,20 +323,30 @@ function renderProperties() {
 }
 
 function renderLayers() {
-  layerList.innerHTML = "";
-  [...state.items].reverse().forEach((item, index) => {
+  layerList.replaceChildren();
+  [...state.items].reverse().forEach((item) => {
     const row = document.createElement("div");
     row.className = `layer-row${selectedIds.has(item.id) ? " active" : ""}${item.hidden ? " is-hidden" : ""}`;
     row.dataset.id = item.id;
-    row.innerHTML = `
-      <button type="button" data-layer-action="visibility" title="${item.hidden ? "Show" : "Hide"}">${item.hidden ? "H" : "V"}</button>
-      <button type="button" data-layer-action="lock" title="${item.locked ? "Unlock" : "Lock"}">${item.locked ? "L" : "U"}</button>
-      <span>${item.label}</span>
-      <button type="button" data-layer-action="rename" title="Rename">R</button>`;
+
+    const addAction = (action, title, text) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.layerAction = action;
+      button.title = title;
+      button.textContent = text;
+      row.appendChild(button);
+    };
+
+    addAction("visibility", item.hidden ? "Show" : "Hide", item.hidden ? "H" : "V");
+    addAction("lock", item.locked ? "Unlock" : "Lock", item.locked ? "L" : "U");
+    const label = document.createElement("span");
+    label.textContent = item.label;
+    row.appendChild(label);
+    addAction("rename", "Rename", "R");
     layerList.appendChild(row);
   });
 }
-
 function itemById(idValue) {
   return state.items.find((item) => item.id === idValue);
 }
@@ -919,127 +878,53 @@ function hideNewConfirm() {
 }
 
 function loadJson(file) {
+  const reportError = (message) => {
+    window.alert(`Could not load this diagram. ${message}\nYour current diagram has been kept.`);
+  };
   const reader = new FileReader();
   reader.onload = () => {
-    const parsed = JSON.parse(String(reader.result));
-    state = normalizeState(parsed);
-    undoStack = [];
-    redoStack = [];
+    let nextState;
+    try {
+      nextState = normalizeState(JSON.parse(String(reader.result)));
+    } catch (error) {
+      reportError(error instanceof SyntaxError ? "The file is not valid JSON." : error.message);
+      return;
+    }
+    recordHistory();
+    state = nextState;
     clearSelection();
     setDocumentTitle(titleFromFilename(file.name));
     render();
   };
-  reader.readAsText(file);
+  reader.onerror = () => reportError("The file could not be read. Please try again.");
+  reader.onabort = () => reportError("Reading the file was canceled.");
+  try {
+    reader.readAsText(file);
+  } catch {
+    reportError("The file could not be read. Please try again.");
+  }
 }
-
-function exportAssetUrl(src) {
-  return window.EXPORT_ASSETS?.[src] || src;
-}
-
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = reject;
-    image.src = exportAssetUrl(src);
-  });
-}
-
-function exportTeamColor(team) {
-  if (team === "blue") return "rgba(54, 163, 255, 0.22)";
-  if (team === "red") return "rgba(239, 75, 92, 0.22)";
-  return "rgba(214, 172, 85, 0.22)";
-}
-
 async function exportPng() {
   try {
-    const size = 1600;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const context = canvas.getContext("2d");
-
-    const mapImage = await loadImage("assets/sr-export.jpg");
-    context.drawImage(mapImage, 0, 0, size, size);
-
-    if (!document.querySelector("#sight-layer").classList.contains("hidden")) {
-      const sightImage = await loadImage("assets/sr sight.jpeg");
-      context.globalAlpha = 0.88;
-      context.drawImage(sightImage, 0, 0, size, size);
-      context.globalAlpha = 1;
-    }
-
-    if (filters.drawings) {
-      for (const path of state.paths) {
-        if (!path.points?.length) continue;
-        context.beginPath();
-        path.points.forEach((point, index) => {
-          const x = (point.x / 100) * size;
-          const y = (point.y / 100) * size;
-          if (index === 0) context.moveTo(x, y);
-          else context.lineTo(x, y);
-        });
-        context.strokeStyle = path.color || "#f0d66a";
-        context.lineWidth = (path.width || 7) * 1.6;
-        context.lineCap = "round";
-        context.lineJoin = "round";
-        context.stroke();
-      }
-    }
-
-    for (const item of state.items) {
-      if (item.hidden) continue;
-      if (item.team && filters[item.team] === false) continue;
-      if (item.type === "ward" && !filters.ward) continue;
-      if ((item.type === "minion" || item.type === "cannon" || item.type === "super-minion") && !filters.minion) continue;
-
-      const image = await loadImage(assetFor(item));
-      const iconSize = Math.max(item.size * 4, 6) * 3;
-      const x = (item.x / 100) * size - iconSize / 2;
-      const y = (item.y / 100) * size - iconSize / 2;
-      const centerX = x + iconSize / 2;
-      const centerY = y + iconSize / 2;
-
-      if (item.range > 0 && !diagram.classList.contains("hide-ranges")) {
-        const diameter = (item.range / 1000) * size;
-        context.beginPath();
-        context.arc(centerX, centerY, diameter / 2, 0, Math.PI * 2);
-        context.strokeStyle = exportTeamColor(item.team);
-        context.lineWidth = 3.2;
-        context.stroke();
-      }
-
-      context.globalAlpha = (item.opacity / 100) * (item.cloaked ? 0.4 : 1);
-      context.drawImage(image, x, y, iconSize, iconSize);
-      context.globalAlpha = 1;
-
-      if (!diagram.classList.contains("hide-labels")) {
-        context.font = "bold 18px system-ui, sans-serif";
-        context.textAlign = "center";
-        context.lineWidth = 4;
-        context.strokeStyle = "rgba(0,0,0,.75)";
-        context.fillStyle = "#f3f6f2";
-        const labelY = y + iconSize + 18;
-        context.strokeText(item.label, centerX, labelY);
-        context.fillText(item.label, centerX, labelY);
-      }
-    }
-
-    const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob((result) => {
-        if (result) resolve(result);
-        else reject(new Error("Canvas did not produce a PNG blob."));
-      }, "image/png");
+    const snapshot = DiagramExport.createSnapshot({
+      state,
+      filters,
+      diagramWidth: diagram.clientWidth,
+      showSight: !document.querySelector("#sight-layer").classList.contains("hidden"),
+      showRanges: !diagram.classList.contains("hide-ranges"),
+      showLabels: !diagram.classList.contains("hide-labels"),
+      fontFamily: getComputedStyle(diagram).fontFamily,
+      filename: `${safeFilename(currentDocumentTitle)}.png`,
+      assetFor,
+      isItemVisible
     });
-
-    {
-      const pngUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = pngUrl;
-      link.download = `${safeFilename(currentDocumentTitle)}.png`;
-      link.click();
-      URL.revokeObjectURL(pngUrl);
-    }
+    const blob = await DiagramExport.createPng(snapshot);
+    const pngUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = pngUrl;
+    link.download = snapshot.filename;
+    link.click();
+    URL.revokeObjectURL(pngUrl);
   } catch (error) {
     console.error(error);
     alert("PNG export failed. Try refreshing the app and exporting again.");
@@ -1125,7 +1010,7 @@ diagram.addEventListener("contextmenu", (event) => {
       {
         label: `Select ${item?.label || "item"}`,
         run: () => {
-          selectOnly(itemId);
+          selectOnly(itemId, { visibleOnly: true });
           render();
         }
       },
@@ -1139,7 +1024,7 @@ diagram.addEventListener("contextmenu", (event) => {
       {
         label: "Delete item",
         run: () => {
-          selectOnly(itemId);
+          selectOnly(itemId, { visibleOnly: true });
           deleteSelected();
         }
       }
@@ -1174,8 +1059,8 @@ diagram.addEventListener("contextmenu", (event) => {
     actions.push({
       label: "Select all items",
       run: () => {
-        selectedIds = new Set(state.items.map((item) => item.id));
-        selectedId = state.items.at(-1)?.id || null;
+        selectedIds = new Set(state.items.filter((item) => isItemVisible(item)).map((item) => item.id));
+        selectedId = selectedItems().at(-1)?.id || null;
         render();
       }
     });
@@ -1206,11 +1091,12 @@ diagram.addEventListener("pointerdown", (event) => {
 
   if (event.button !== 0) return;
   event.preventDefault();
+  diagram.focus({ preventScroll: true });
 
   if (activeTool === "erase") {
     if (token) {
       if (itemById(token.dataset.id)?.locked) return;
-      selectOnly(token.dataset.id);
+      selectOnly(token.dataset.id, { visibleOnly: true });
       deleteSelected();
       return;
     }
@@ -1241,7 +1127,7 @@ diagram.addEventListener("pointerdown", (event) => {
   if (event.shiftKey) {
     addToSelection(token.dataset.id);
   } else if (!selectedIds.has(token.dataset.id)) {
-    selectOnly(token.dataset.id);
+    selectOnly(token.dataset.id, { visibleOnly: true });
   } else {
     selectedId = token.dataset.id;
   }
@@ -1249,12 +1135,9 @@ diagram.addEventListener("pointerdown", (event) => {
     render();
     return;
   }
-  recordHistory();
-  historyDragStarted = true;
-  const item = selectedItem();
   const point = pointFromEvent(event);
   drag = {
-    ids: new Set(selectedIds),
+    recorded: false,
     offsets: selectedItems().filter((selected) => !selected.locked).map((selected) => ({
       id: selected.id,
       dx: selected.x - point.x,
@@ -1268,13 +1151,21 @@ diagram.addEventListener("pointerdown", (event) => {
 diagram.addEventListener("pointermove", (event) => {
   if (drag) {
     const point = pointFromEvent(event);
-    drag.offsets.forEach((offset) => {
-      const item = state.items.find((candidate) => candidate.id === offset.id);
-      if (!item) return;
-      item.x = clamp(point.x + offset.dx, 0, 100);
-      item.y = clamp(point.y + offset.dy, 0, 100);
+    const changes = drag.offsets.flatMap((offset) => {
+      const item = itemById(offset.id);
+      if (!item || item.locked) return [];
+      const x = clamp(point.x + offset.dx, 0, 100);
+      const y = clamp(point.y + offset.dy, 0, 100);
+      return Math.abs(item.x - x) > 1e-8 || Math.abs(item.y - y) > 1e-8 ? [{ item, x, y }] : [];
     });
-    render();
+    if (changes.length) {
+      if (!drag.recorded) {
+        recordHistory();
+        drag.recorded = true;
+      }
+      changes.forEach(({ item, x, y }) => Object.assign(item, { x, y }));
+      render();
+    }
   }
 
   if (panDrag) {
@@ -1307,7 +1198,10 @@ diagram.addEventListener("pointerup", (event) => {
     const previousIds = new Set(selectedIds);
     selectItemsInBox(boxSelect.start, boxSelect.end);
     if (boxSelect.additive) {
-      previousIds.forEach((id) => selectedIds.add(id));
+      previousIds.forEach((id) => {
+        const item = itemById(id);
+        if (item && isItemVisible(item)) selectedIds.add(id);
+      });
       selectedId = selectedItems().at(-1)?.id || null;
       render();
     }
@@ -1315,11 +1209,7 @@ diagram.addEventListener("pointerup", (event) => {
     selectionBox.classList.add("hidden");
   }
 
-  drag = null;
-  historyDragStarted = false;
-  panDrag = null;
-  activePath = null;
-  diagram.classList.remove("panning");
+  clearPointerInteraction();
   if (diagram.hasPointerCapture(event.pointerId)) diagram.releasePointerCapture(event.pointerId);
 
   if (completedPan?.button === 1 && !completedPan.moved) {
@@ -1327,6 +1217,18 @@ diagram.addEventListener("pointerup", (event) => {
     showQuickViewMenu(event);
   }
 });
+
+function clearPointerInteraction() {
+  drag = null;
+  panDrag = null;
+  activePath = null;
+  boxSelect = null;
+  selectionBox.classList.add("hidden");
+  diagram.classList.remove("panning");
+}
+
+diagram.addEventListener("pointercancel", clearPointerInteraction);
+diagram.addEventListener("lostpointercapture", clearPointerInteraction);
 
 layerList.addEventListener("click", (event) => {
   const row = event.target.closest(".layer-row");
@@ -1434,8 +1336,7 @@ document.querySelector("#toggle-labels").addEventListener("change", (event) => {
 });
 document.querySelectorAll("[data-filter]").forEach((input) => {
   input.addEventListener("change", () => {
-    filters[input.dataset.filter] = input.checked;
-    render();
+    setLayerFilter(input.dataset.filter, input.checked);
   });
 });
 
@@ -1483,10 +1384,7 @@ quickViewMenu.addEventListener("change", (event) => {
 
   const filter = event.target.closest("[data-quick-filter]")?.dataset.quickFilter;
   if (filter) {
-    filters[filter] = event.target.checked;
-    const sidebarFilter = document.querySelector(`[data-filter="${filter}"]`);
-    if (sidebarFilter) sidebarFilter.checked = event.target.checked;
-    render();
+    setLayerFilter(filter, event.target.checked);
   }
 });
 

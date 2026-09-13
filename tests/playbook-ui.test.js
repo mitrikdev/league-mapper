@@ -274,3 +274,52 @@ test("an unreadable stored draft is retained until the user explicitly starts an
   assert.equal(JSON.parse(editor.saved()).scenes.length, 1);
   assert.deepEqual(JSON.parse(editor.saved()).scenes[0].diagram.items, []);
 });
+
+test("changing team perspective covers every step, survives navigation, and is reversible", () => {
+  const editor = loadPlaybook();
+  const original = editor.snapshot();
+  editor.run("window.PlaybookUI.setPerspective('blue')");
+  assert.equal(editor.run("undoStack.length"), 1);
+  assert.ok(editor.snapshot().scenes.every(scene => scene.diagram.vision.perspective === "blue"));
+  editor.click("#next-scene");
+  const blueAtNextStep = editor.snapshot();
+  assert.equal(blueAtNextStep.activeSceneId, original.scenes[1].id);
+  assert.equal(editor.run("state.vision.perspective"), "blue");
+  editor.run("window.PlaybookUI.setPerspective('blue')");
+  assert.equal(editor.run("undoStack.length"), 1, "selecting the same perspective is not an edit");
+  editor.run("window.PlaybookUI.setPerspective('red')");
+  const redAtNextStep = editor.snapshot();
+  assert.ok(redAtNextStep.scenes.every(scene => scene.diagram.vision.perspective === "red"));
+  editor.click("#undo-button");
+  assert.deepEqual(editor.snapshot(), blueAtNextStep);
+  editor.click("#undo-button");
+  assert.deepEqual(editor.snapshot(), original);
+  editor.click("#redo-button");
+  assert.deepEqual(editor.snapshot(), blueAtNextStep);
+  editor.click("#redo-button");
+  assert.deepEqual(editor.snapshot(), redAtNextStep);
+  editor.pagehide();
+  const restored = loadPlaybook(editor.saved());
+  assert.deepEqual(restored.snapshot(), redAtNextStep);
+  restored.click("#next-scene");
+  assert.equal(restored.run("state.vision.perspective"), "red");
+});
+
+test("presentation vision selectors keep their native keyboard controls while Escape exits", () => {
+  const editor = loadPlaybook();
+  editor.click("#present-button");
+  const original = editor.snapshot();
+  const select = editor.element("#presentation-vision-test-select");
+  select.tagName = "SELECT";
+  select.focus();
+  for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " ", "Enter", "b", "r"]) {
+    let prevented = false;
+    editor.key(key, { preventDefault() { prevented = true; } });
+    assert.equal(prevented, false, `${key} remains available to the native selector`);
+    assert.deepEqual(editor.snapshot(), original, `${key} cannot navigate to another step`);
+    assert.equal(editor.intervals.size, 0, `${key} cannot start playback`);
+    assert.equal(editor.run("window.PlaybookUI.isPresenting()"), true);
+  }
+  editor.key("Escape");
+  assert.equal(editor.run("window.PlaybookUI.isPresenting()"), false);
+});

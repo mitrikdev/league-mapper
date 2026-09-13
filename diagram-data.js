@@ -5,6 +5,8 @@
   const colorPattern = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
   const teams = new Set(["blue", "red", "neutral"]);
   const roles = new Set(["TOP", "JGL", "MID", "BOT", "SUP"]);
+  const wardKinds = new Set(["stealth", "control", "farsight"]);
+  const perspectives = new Set(["all", "blue", "red"]);
 
   function invalid(field, requirement) {
     throw new Error(`${field} ${requirement}.`);
@@ -61,6 +63,13 @@
         invalid(`${field} role`, "must be TOP, JGL, MID, BOT or SUP");
       }
 
+      if (item.wardKind !== undefined && (item.type !== "ward" || !wardKinds.has(item.wardKind))) {
+        invalid(field + " ward kind", "must be stealth, control or farsight on a ward");
+      }
+      if (item.visionDisabled !== undefined && typeof item.visionDisabled !== "boolean") {
+        invalid(field + " vision disabled", "must be true or false");
+      }
+
       return {
         id: itemId,
         type: item.type,
@@ -72,6 +81,9 @@
         opacity: number(item.opacity, `${field} opacity`, 0, 100),
         label: item.label,
         ...(item.role === undefined ? {} : { role: item.role }),
+        ...(item.wardKind === undefined ? {} : { wardKind: item.wardKind }),
+        ...(item.visionDisabled === undefined ? {} : { visionDisabled: item.visionDisabled }),
+        ...(item.visionRadius === undefined ? {} : { visionRadius: number(item.visionRadius, field + " vision radius", 0, 2500) }),
         hidden: optionalBoolean(item.hidden, `${field} hidden`),
         locked: optionalBoolean(item.locked, `${field} locked`),
         cloaked: optionalBoolean(item.cloaked, `${field} cloaked`),
@@ -105,7 +117,16 @@
       };
     });
 
-    return { version: 1, items, paths };
+    let vision;
+    if (value.vision !== undefined) {
+      const rawVision = record(value.vision, "Diagram vision");
+      if (!perspectives.has(rawVision.perspective)) {
+        invalid("Diagram vision perspective", "must be all, blue or red");
+      }
+      vision = { perspective: rawVision.perspective };
+    }
+
+    return { version: 1, items, paths, ...(vision === undefined ? {} : { vision }) };
   }
 
   const api = { normalizeState };

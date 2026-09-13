@@ -74,7 +74,7 @@
   }
 
   function renderSceneList() {
-    const key = JSON.stringify([book.activeSceneId, ...book.scenes.map(scene => [scene.id, scene.title, scene.diagram.items.length, scene.diagram.paths.length])]);
+    const key = JSON.stringify([book.activeSceneId, ...book.scenes.map(scene => [scene.id, scene.title, scene.diagram.items.length, scene.diagram.paths.length, scene.diagram.vision?.perspective])]);
     if (key === sceneListKey) return;
     sceneListKey = key;
     const list = $("#scene-list");
@@ -94,7 +94,7 @@
       name.textContent = scene.title;
       const meta = document.createElement("small");
       meta.className = "scene-meta";
-      meta.textContent = `${scene.diagram.items.length} pieces · ${scene.diagram.paths.length} routes`;
+      meta.textContent = scene.diagram.vision?.perspective && scene.diagram.vision.perspective !== "all" ? "Team vision · " + scene.diagram.paths.length + " routes" : `${scene.diagram.items.length} pieces · ${scene.diagram.paths.length} routes`;
       button.append(number, name, meta);
       button.addEventListener("click", () => goToScene(scene.id));
       list.appendChild(button);
@@ -126,13 +126,15 @@
     $("#play-button").disabled = book.scenes.length < 2;
     if ($("#clear-drawings")) $("#clear-drawings").disabled = state.paths.length === 0;
     document.querySelectorAll("[data-roster-role]").forEach(button => {
-      const item = state.items.find(candidate => candidate.team === activeTeam && candidate.role === button.dataset.rosterRole);
+      const restricted = state.vision?.perspective && state.vision.perspective !== 'all' && activeTeam !== state.vision.perspective;
+      const item = restricted ? null : state.items.find(candidate => candidate.team === activeTeam && candidate.role === button.dataset.rosterRole);
       button.classList.toggle("is-placed", Boolean(item));
       button.classList.toggle("active", Boolean(item && selectedIds.has(item.id)));
       button.dataset.team = activeTeam;
+      button.disabled = Boolean(restricted);
       button.setAttribute("aria-pressed", String(Boolean(item && selectedIds.has(item.id))));
       const status = button.querySelector(".roster-state");
-      if (status) status.textContent = item ? "On map" : "+ Add";
+      if (status) status.textContent = restricted ? "Use All view" : item ? "On map" : "+ Add";
     });
     updateHistory();
     renderSceneList();
@@ -215,6 +217,8 @@
   }
 
   function setPresenting(value) {
+    const cameraZoom = zoom;
+    const cameraPoint = cameraZoom > 100 ? visibleMapCenter() : { x: 50, y: 50 };
     commitFields();
     stopPlayback();
     clearPointerInteraction();
@@ -232,10 +236,11 @@
       $("#present-button").focus();
     }
     render();
-    requestAnimationFrame(() => setZoomAtMapPercent(100, 50, 50));
+    requestAnimationFrame(() => setZoomAtMapPercent(cameraZoom, cameraPoint.x, cameraPoint.y));
   }
 
   function addRole(role) {
+    if (state.vision?.perspective && state.vision.perspective !== 'all' && activeTeam !== state.vision.perspective) return;
     const existing = state.items.find(item => item.team === activeTeam && item.role === role);
     if (existing) {
       if (existing.hidden) { recordHistory(); existing.hidden = false; }
@@ -289,9 +294,31 @@
     return demo;
   }
 
+  function visionExample() {
+    const blue = createItem('champion', 'blue', 59, 61, { role: 'SUP', label: 'SUP', size: 4 });
+    const red = createItem('champion', 'red', 59, 56.3, { role: 'JGL', label: 'JGL', size: 4 });
+    const start = { version: 1, vision: { perspective: 'blue' }, items: [blue, red], paths: [] };
+    let demo = PlaybookData.create(start, 'Who can see the river?');
+    demo.scenes[0].title = 'An unseen threat';
+    demo.scenes[0].note = 'Blue support is close, but the enemy jungler is hidden inside river brush. Switch View to All vision to compare both positions.';
+    demo = PlaybookData.addScene(demo, demo.scenes[0].diagram);
+    const second = PlaybookData.active(demo);
+    second.title = 'Ward the brush';
+    second.note = 'An allied stealth ward inside the brush shares its sight with the team. The enemy jungler becomes visible.';
+    second.diagram.items.push(createItem('ward', 'blue', 58.3, 57.8, { wardKind: 'stealth', size: 2, range: 0, label: 'River ward' }));
+    demo = PlaybookData.addScene(demo, second.diagram);
+    const third = PlaybookData.active(demo);
+    third.title = 'Vision denied';
+    third.note = 'An enemy control ward suppresses the stealth ward. The jungler disappears again. The suppressing control ward is revealed; select your ward to inspect its status.';
+    third.diagram.items.push(createItem('ward', 'red', 59.8, 56.3, { wardKind: 'control', size: 2, range: 0, label: 'Control ward' }));
+    demo.activeSceneId = demo.scenes[0].id;
+    return demo;
+  }
+
   function newPlay(mode, record = true) {
     let next;
-    if (mode === "dragon") next = examplePlay();
+    if (mode === "vision") next = visionExample();
+    else if (mode === "dragon") next = examplePlay();
     else if (mode === "blank") next = PlaybookData.create({ version: 1, items: [], paths: [] });
     else {
       const fullMap = normalizeState(cloneState(window.DEFAULT_START_STATE));
@@ -304,8 +331,19 @@
     }
     allowDraft = true;
     applyBook(next, { record, fit: true });
+    if (mode === "vision") { setZoomAtMapPercent(250, 59, 59); setViewToggle("labels", false); }
     setTool("select");
     saveDraft();
+  }
+
+  function setPerspective(perspective) {
+    commitFields();
+    stopPlayback();
+    if (book.scenes.every(scene => (scene.diagram.vision?.perspective || 'all') === perspective)) return;
+    recordHistory();
+    book.scenes.forEach(scene => { scene.diagram.vision = { perspective }; });
+    clearSelection();
+    render();
   }
 
   function save(filename) {
@@ -348,6 +386,7 @@
     const activatesPlayback = document.activeElement === $("#play-button") && ["Enter", " "].includes(event.key);
     if (!presenting && playback !== null && event.key !== "Tab" && !activatesPlayback) stopPlayback();
     if (presenting) {
+      if (document.activeElement?.tagName === 'SELECT' && event.key !== 'Escape') return true;
       if (event.key === "Escape") setPresenting(false);
       else if (event.key === "ArrowRight") navigate(1);
       else if (event.key === "ArrowLeft") navigate(-1);
@@ -380,7 +419,7 @@
     return false;
   }
 
-  window.PlaybookUI = { onRender, snapshot, restore, updateHistory, save, load, newPlay, handleKeydown, isPresenting: () => presenting };
+  window.PlaybookUI = { onRender, snapshot, restore, updateHistory, save, load, newPlay, setPerspective, handleKeydown, isPresenting: () => presenting };
   book = examplePlay();
   try {
     const saved = localStorage.getItem(storageKey);

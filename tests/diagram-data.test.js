@@ -173,6 +173,7 @@ test("imported labels remain literal text in the layer list, including an XSS pa
   const layerList = new Element("div");
   const context = {
     state: normalize(fixture({ label: payload })), selectedIds: new Set(), layerList,
+    visionResult: null, visionVisibleIds: null,
     document: { createElement: (tagName) => new Element(tagName) }
   };
   vm.runInNewContext(`${functionSource("renderLayers")}\nrenderLayers();`, context);
@@ -208,5 +209,46 @@ test("invalid role names and non-boolean directional-arrow flags reject the whol
     const input = fixture();
     input.paths[0].arrow = arrow;
     assert.throws(() => normalize(input), /arrow/);
+  }
+});
+
+test("vision settings and ward variants round trip without adding fields to legacy data", () => {
+  const legacy = normalize(fixture());
+  assert.equal(Object.hasOwn(legacy, "vision"), false);
+  for (const field of ["wardKind", "visionDisabled", "visionRadius"]) {
+    assert.equal(Object.hasOwn(legacy.items[0], field), false);
+  }
+  for (const perspective of ["all", "blue", "red"]) {
+    for (const wardKind of ["stealth", "control", "farsight"]) {
+      const source = fixture({ wardKind, visionDisabled: false, visionRadius: 1100 });
+      source.vision = { perspective, ignored: "not imported" };
+      const normalized = normalize(source);
+      assert.deepEqual(normalized.vision, { perspective });
+      assert.equal(normalized.items[0].wardKind, wardKind);
+      assert.equal(normalized.items[0].visionDisabled, false);
+      assert.equal(normalized.items[0].visionRadius, 1100);
+      assert.deepEqual(normalize(JSON.parse(JSON.stringify(normalized))), normalized);
+      normalized.vision.perspective = "changed";
+      assert.equal(source.vision.perspective, perspective, "vision is copied before import");
+    }
+  }
+  assert.equal(normalize(fixture({ type: "champion", visionDisabled: true, visionRadius: 0 })).items[0].visionRadius, 0);
+  assert.equal(normalize(fixture({ visionRadius: 2500 })).items[0].visionRadius, 2500);
+});
+
+test("invalid vision settings reject the diagram instead of weakening fog restrictions", () => {
+  for (const vision of [null, [], "blue", {}, { perspective: null }, { perspective: "neutral" },
+    { perspective: "Blue" }, { perspective: true }]) {
+    assert.throws(() => normalize({ ...fixture(), vision }), /vision/);
+  }
+  for (const wardKind of [null, 0, false, [], {}, "", "pink", "CONTROL"]) {
+    assert.throws(() => normalize(fixture({ wardKind })), /ward kind/);
+  }
+  assert.throws(() => normalize(fixture({ type: "champion", wardKind: "control" })), /ward kind/);
+  for (const visionDisabled of [null, 0, 1, "false", [], {}]) {
+    assert.throws(() => normalize(fixture({ visionDisabled })), /vision disabled/);
+  }
+  for (const visionRadius of [null, "1100", NaN, Infinity, -1, 2501, [], {}]) {
+    assert.throws(() => normalize(fixture({ visionRadius })), /vision radius/);
   }
 });

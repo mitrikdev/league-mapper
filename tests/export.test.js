@@ -24,14 +24,16 @@ function canvasRecorder() {
   const calls = [];
   const context = {
     globalAlpha: 1,
+    filter: "none",
+    fillRect(x, y, width, height) { calls.push({ type: "rect", x, y, width, height, color: this.fillStyle, alpha: this.globalAlpha }); },
     beginPath() {},
     closePath() { calls.push({ type: "closePath" }); },
     fill() { calls.push({ type: "fill", color: this.fillStyle, alpha: this.globalAlpha }); },
     moveTo(x, y) { calls.push({ type: "moveTo", x, y }); },
     lineTo(x, y) { calls.push({ type: "lineTo", x, y }); },
     arc(x, y, radius) { calls.push({ type: "arc", x, y, radius, lineWidth: this.lineWidth, alpha: this.globalAlpha }); },
-    stroke() { calls.push({ type: "stroke", lineWidth: this.lineWidth, alpha: this.globalAlpha }); },
-    drawImage(image, x, y, width, height) { calls.push({ type: "image", image, x, y, width, height, alpha: this.globalAlpha }); },
+    stroke() { calls.push({ type: "stroke", lineWidth: this.lineWidth, alpha: this.globalAlpha, color: this.strokeStyle, filter: this.filter }); },
+    drawImage(image, x, y, width, height) { calls.push({ type: "image", image, x, y, width, height, alpha: this.globalAlpha, filter: this.filter }); },
     measureText(text) { return { width: Array.from(text).length * parseFloat(this.font.split(" ")[1]) * 0.6 }; },
     strokeText() {},
     fillText(text, x, y) { calls.push({ type: "text", text, x, y, font: this.font, color: this.fillStyle, align: this.textAlign, baseline: this.textBaseline, alpha: this.globalAlpha }); }
@@ -230,4 +232,142 @@ test("custom role labels respect label visibility while the role identity remain
   const hidden = canvasRecorder();
   await DiagramExport.renderToCanvas({ ...snapshot, showLabels: false }, hidden.options);
   assert.deepEqual(hidden.calls.filter((call) => call.type === "text").map((call) => call.text), ["MID"]);
+});
+
+function visionFixture(overrides = {}) {
+  return {
+    perspective: "blue",
+    fogRects: [[0, 0, 100, 20], [10, 25, 20, 5]],
+    visibleIds: ["ward"],
+    radiusById: { ward: 1100 },
+    mapUnits: 15000,
+    ...overrides
+  };
+}
+
+test("PNG team vision hides unseen enemies and still honors editor visibility filters", async () => {
+  for (const perspective of ["blue", "red"]) {
+    const snapshot = makeSnapshot({
+      state: { items: [
+        { id: "ally", type: "ward", team: perspective, x: 20, y: 30, size: 2, range: 190, opacity: 100, label: "Ally" },
+        { id: "unseen", type: "champion", team: perspective === "blue" ? "red" : "blue", x: 80, y: 80, size: 7, range: 190, opacity: 100, label: "SECRET" },
+        { id: "hidden", type: "ward", team: perspective, hidden: true, x: 30, y: 30, size: 2, range: 190, opacity: 100, label: "HIDDEN" }
+      ], paths: [] },
+      vision: visionFixture({ perspective, visibleIds: ["ally", "hidden"], radiusById: { ally: 1100, unseen: 1350, hidden: 1100 } })
+    });
+    assert.deepEqual(snapshot.items.map((item) => item.id), ["ally"]);
+    const record = canvasRecorder();
+    await DiagramExport.renderToCanvas(snapshot, record.options);
+    assert.deepEqual(record.calls.filter((call) => call.type === "text").map((call) => call.text), ["Ally"]);
+    assert.equal(record.calls.filter((call) => call.type === "arc").length, 1, "no enemy range reveals its position");
+    assert.deepEqual(record.calls.filter((call) => call.type === "image").map((call) => call.image), ["assets/sr-export.jpg", "ward.png"]);
+  }
+});
+
+test("fog, visible IDs and world ranges remain fixed while export images load", async () => {
+  const vision = visionFixture();
+  const snapshot = makeSnapshot({ vision, showSight: true });
+  const expected = JSON.parse(JSON.stringify(snapshot.vision));
+  const record = canvasRecorder();
+  let resumeMap;
+  const waiting = new Promise((resolve) => { resumeMap = resolve; });
+  const rendering = DiagramExport.renderToCanvas(snapshot, {
+    ...record.options,
+    loadImage: async (src) => src === "assets/sr-export.jpg" ? waiting : src
+  });
+  vision.perspective = "all";
+  vision.fogRects[0][2] = 1;
+  vision.fogRects.push([90, 90, 10, 10]);
+  vision.visibleIds.length = 0;
+  vision.radiusById.ward = 0;
+  vision.mapUnits = 1;
+  resumeMap("assets/sr-export.jpg");
+  await rendering;
+  assert.deepEqual(snapshot.vision, expected);
+  const rects = record.calls.filter((call) => call.type === "rect");
+  assert.deepEqual(rects, [
+    { type: "rect", x: 0, y: 0, width: 1600, height: 320, color: "rgba(7,13,22,.82)", alpha: 1 },
+    { type: "rect", x: 160, y: 400, width: 320, height: 80, color: "rgba(7,13,22,.82)", alpha: 1 }
+  ]);
+  const fogIndex = record.calls.findIndex((call) => call.type === "rect");
+  const sightIndex = record.calls.findIndex((call) => call.image === "assets/sr sight.jpeg");
+  const pathIndex = record.calls.findIndex((call) => call.type === "moveTo");
+  const tokenIndex = record.calls.findIndex((call) => call.image === "ward.png");
+  assert.ok(sightIndex < fogIndex && fogIndex < pathIndex && pathIndex < tokenIndex);
+  const ring = record.calls.find((call) => call.type === "arc");
+  assert.ok(Math.abs(2 * ring.radius + ring.lineWidth - 2 * 1100 / 15000 * 1600) < 1e-10);
+});
+
+test("game-unit ranges keep the same map diameter at different editor and PNG sizes", async () => {
+  for (const diagramWidth of [390, 640, 980]) {
+    for (const size of [1000, 1600]) {
+      const snapshot = makeSnapshot({ diagramWidth,
+        state: { items: [{ id: "champion", type: "champion", team: "blue", x: 50, y: 50, size: 7, range: 0, opacity: 100, label: "Champion" }], paths: [] },
+        vision: visionFixture({ perspective: "all", visibleIds: [], radiusById: { champion: 1350 } })
+      });
+      const record = canvasRecorder();
+      await DiagramExport.renderToCanvas(snapshot, { ...record.options, size });
+      const ring = record.calls.find((call) => call.type === "arc");
+      assert.ok(ring, "champion vision renders despite a zero legacy range");
+      assert.ok(Math.abs((2 * ring.radius + ring.lineWidth) / size - 2700 / 15000) < 1e-10);
+      assert.equal(ring.lineWidth, 2 * size / diagramWidth);
+      assert.equal(record.calls.some((call) => call.type === "fill"), false, "world-radius guides are border-only, matching the editor");
+      assert.equal(record.calls.some((call) => call.type === "rect"), false, "all-map perspective does not draw fog");
+    }
+  }
+});
+
+test("zero world vision suppresses legacy ranges and the range toggle suppresses all rings", async () => {
+  for (const options of [
+    { vision: visionFixture({ radiusById: { ward: 0 } }) },
+    { vision: visionFixture(), showRanges: false }
+  ]) {
+    const record = canvasRecorder();
+    await DiagramExport.renderToCanvas(makeSnapshot(options), record.options);
+    assert.equal(record.calls.some((call) => call.type === "arc"), false);
+  }
+  const record = canvasRecorder();
+  await DiagramExport.renderToCanvas(makeSnapshot({ vision: visionFixture({ radiusById: {} }) }), record.options);
+  const legacy = record.calls.find((call) => call.type === "arc");
+  assert.equal(2 * legacy.radius + legacy.lineWidth, 190 * 1600 / 640);
+});
+
+test("ward variants keep their outlines and disabled appearance in the PNG", async () => {
+  for (const diagramWidth of [390, 640, 980]) {
+    for (const [wardKind, color] of [["control", "#ec6c97"], ["farsight", "#81d5ec"]]) {
+      for (const disabled of ["none", "manual", "control"]) {
+        const snapshot = makeSnapshot({ diagramWidth, showRanges: false,
+          state: { items: [{ id: "ward", type: "ward", team: "blue", wardKind,
+            x: 25, y: 50, size: 3, range: 0, opacity: 100, label: "Ward",
+            visionDisabled: disabled === "manual"
+          }], paths: [] },
+          vision: visionFixture({ disabledWardIds: disabled === "control" ? ["ward"] : [] })
+        });
+        const record = canvasRecorder();
+        await DiagramExport.renderToCanvas(snapshot, record.options);
+        const cssScale = 1600 / diagramWidth;
+        const outline = record.calls.find((call) => call.type === "arc");
+        assert.equal(outline.lineWidth, 2 * cssScale);
+        assert.ok(Math.abs(outline.radius - (12 / 2 + 1 + 2 / 2) * cssScale) < 1e-10,
+          "outline sits outside the icon with a 1px gap and 2px border");
+        const expectedFilter = disabled === "none" ? "none" : "grayscale(1)";
+        const stroke = record.calls.find((call) => call.type === "stroke");
+        assert.equal(stroke.color, color);
+        assert.equal(stroke.filter, expectedFilter);
+        const image = record.calls.find((call) => call.type === "image" && call.image === "ward.png");
+        assert.equal(image.filter, expectedFilter);
+        assert.equal(record.context.filter, "none", "grayscale cannot carry into labels or later tokens");
+      }
+    }
+  }
+});
+
+test("suppressed stealth wards are gray without adding a ward-variant outline", async () => {
+  const snapshot = makeSnapshot({ showRanges: false,
+    vision: visionFixture({ disabledWardIds: ["ward"] })
+  });
+  const record = canvasRecorder();
+  await DiagramExport.renderToCanvas(snapshot, record.options);
+  assert.equal(record.calls.find((call) => call.image === "ward.png").filter, "grayscale(1)");
+  assert.equal(record.calls.some((call) => call.type === "arc"), false);
 });

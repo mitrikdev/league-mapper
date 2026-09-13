@@ -30,6 +30,7 @@ function restoreEditor(snapshot) {
   try {
     if (snapshot.playbook && window.PlaybookUI) window.PlaybookUI.restore(snapshot.playbook);
     state = normalizeState(cloneState(snapshot.state));
+    refreshVision();
     restoreSelection(snapshot.selection);
     setDocumentTitle(snapshot.title || "Untitled Rift Diagram");
     render();

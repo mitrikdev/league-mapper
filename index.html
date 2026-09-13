@@ -48,7 +48,7 @@
         <div class="menu-button">
           <button id="new-map" class="secondary" type="button" aria-haspopup="true">New <svg class="icon small"><use href="#i-down"/></svg></button>
           <div id="new-menu" class="dropdown-menu hidden">
-            <button type="button" data-new-mode="dragon"><strong>Dragon setup</strong><span>Start with a ready-to-explain scenario</span></button>
+            <button type="button" data-new-mode="vision"><strong>Vision walkthrough</strong><span>Brush, wards, and denying sight</span></button><button type="button" data-new-mode="dragon"><strong>Dragon setup</strong><span>Start with a ready-to-explain scenario</span></button>
             <button type="button" data-new-mode="default"><strong>Full map</strong><span>All structures and jungle camps</span></button>
             <button type="button" data-new-mode="blank"><strong>Blank canvas</strong><span>Build a play from scratch</span></button>
           </div>
@@ -253,10 +253,10 @@
       </section>
       <details class="panel-section view-settings">
         <summary>Map display</summary>
-        <div class="view-options">
+        <div class="view-options"><details class="vision-explainer"><summary>About team vision</summary><p>Team views combine the sight of active allied units. This is a static planning model, not the live game engine. Walls and brush limit ordinary vision; radius guides show maximum distance.</p><p>Uses the 2024 base Rift terrain that matches this map. Faelights, elemental terrain, champion stealth and spells, combat reveals, and timed ward effects are not simulated.</p><p>The terrain grid uses 50-unit cells with measured image alignment. Radius overrides model a custom source, not an ability’s full behavior.</p><p>Layer filters only change what is drawn. Turn off a unit’s vision in its details to remove its sight.</p><p><a href="https://github.com/FrankTheBoxMonster/LoL-NGRID-converter" target="_blank" rel="noreferrer">Terrain data &amp; model</a></p></details>
           <label class="check-row"><input id="toggle-grid" type="checkbox"><span>Grid</span></label>
-          <label class="check-row"><input id="toggle-sight" type="checkbox"><span>Sight overlay</span></label>
-          <label class="check-row"><input id="toggle-ranges" type="checkbox" checked><span>Vision ranges</span></label>
+          <label class="check-row"><input id="toggle-sight" type="checkbox"><span>Reference sight image</span></label>
+          <label class="check-row"><input id="toggle-ranges" type="checkbox"><span>Sight radius guides</span></label>
           <label class="check-row"><input id="toggle-labels" type="checkbox" checked><span>Labels</span></label>
           <p class="mini-label filter-label">Visible layers</p>
           <div class="filter-grid" role="group" aria-label="Layer filters">
@@ -275,17 +275,20 @@
     <main class="workspace" aria-label="Tactical map editor">
       <div class="map-topbar">
         <div class="scene-context"><span class="live-dot" aria-hidden="true"></span><span id="active-scene-title">The setup</span><span id="scene-counter" class="scene-counter">1 / 1</span></div>
+        <label class="vision-perspective"><span>View</span><select data-vision-perspective aria-label="Team vision"><option value="all">All vision</option><option value="blue">Blue team</option><option value="red">Red team</option></select></label>
         <div class="zoom-presets" role="group" aria-label="Focus map region"><span class="mini-label">Focus</span><button type="button" data-zoom-preset="top">Top</button><button type="button" data-zoom-preset="rift">Baron</button><button type="button" data-zoom-preset="mid">Mid</button><button type="button" data-zoom-preset="dragon">Dragon</button><button type="button" data-zoom-preset="bot">Bot</button></div>
       </div>
       <div class="canvas-wrap">
-        <div id="diagram" class="diagram hide-grid" tabindex="0" role="region" aria-label="Tactical map. Select and drag champions, or choose a drawing tool.">
+        <div id="diagram" class="diagram hide-grid hide-ranges" tabindex="0" role="region" aria-label="Tactical map. Select and drag champions, or choose a drawing tool.">
           <img class="map-bg" src="assets/sr.webp" alt="Summoner's Rift" draggable="false">
           <img id="sight-layer" class="sight-layer hidden" src="assets/sr sight.jpeg" alt="" draggable="false">
           <div id="grid-layer" class="grid-layer" aria-hidden="true"></div>
+          <svg id="vision-layer" class="vision-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
           <svg id="draw-layer" class="draw-layer" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"></svg>
           <div id="object-layer" class="object-layer"></div>
         </div>
       </div>
+      <div id="vision-status" class="vision-status" aria-live="polite"></div>
       <div class="floating-tools">
         <div class="tool-grid" role="toolbar" aria-label="Map tools">
           <button type="button" class="tool-button active" data-tool="select" title="Select and move (S)" aria-label="Select and move (S)"><svg class="icon"><use href="#i-select"/></svg><span>Select</span><kbd>S</kbd></button>
@@ -313,7 +316,7 @@
         <div id="properties" class="properties hidden">
           <label><span>Label</span><input id="prop-label" type="text" maxlength="24" placeholder="Add a label"></label>
           <div class="segmented" role="group" aria-label="Selected object team"><button type="button" data-team-set="blue">Blue</button><button type="button" data-team-set="red">Red</button><button type="button" data-team-set="neutral">Neutral</button></div>
-          <details class="selection-details"><summary>Size &amp; vision</summary><div class="properties advanced-properties"><label><span>Size</span><input id="prop-size" type="range" min="1" max="8" value="3"></label><label><span>Vision range</span><input id="prop-range" type="range" min="0" max="220" value="115"></label><label class="check-row"><input id="prop-cloaked" type="checkbox"><span>Cloaked</span></label></div></details>
+          <div id="vision-properties" class="vision-properties"><label id="ward-kind-field" class="field-label" for="prop-ward-kind">Ward type</label><select id="prop-ward-kind"><option value="stealth">Stealth ward</option><option value="control">Control ward</option><option value="farsight">Farsight ward</option></select><label class="field-label" for="prop-vision-radius">Sight radius · game units</label><input id="prop-vision-radius" type="number" min="0" max="2500" step="50" placeholder="Default"><label class="check-row"><input id="prop-vision-disabled" type="checkbox"><span>Vision disabled / inactive</span></label><p id="vision-source-status" class="field-hint"></p></div><details class="selection-details"><summary>Appearance</summary><div class="properties advanced-properties"><label><span>Size</span><input id="prop-size" type="range" min="1" max="8" value="3"></label><label><span>Custom ring (px)</span><input id="prop-range" type="range" min="0" max="220" value="115"></label><label class="check-row"><input id="prop-cloaked" type="checkbox"><span>Dim token</span></label></div></details>
         </div>
         <div id="selection-bulk" class="selection-bulk hidden"><div class="selection-primary"><button id="duplicate" class="secondary" type="button"><svg class="icon small"><use href="#i-copy"/></svg>Duplicate</button><button id="delete" class="danger" type="button"><svg class="icon small"><use href="#i-trash"/></svg>Delete</button></div><details class="selection-details"><summary>Arrange &amp; group</summary><div class="selection-actions"><button type="button" data-selection-action="align-x" title="Align horizontally">Align X</button><button type="button" data-selection-action="align-y" title="Align vertically">Align Y</button><button type="button" data-selection-action="distribute-x" title="Distribute horizontally">Space X</button><button type="button" data-selection-action="distribute-y" title="Distribute vertically">Space Y</button><button type="button" data-selection-action="front">To front</button><button type="button" data-selection-action="back">To back</button><button type="button" data-selection-action="group">Group</button><button type="button" data-selection-action="ungroup">Ungroup</button></div></details></div>
       </section>
@@ -329,7 +332,7 @@
 
   <section id="presentation-bar" class="presentation-bar" aria-label="Presentation controls">
     <div class="presentation-copy"><span id="presentation-counter" class="eyebrow">Step 1 of 1</span><h2 id="presentation-title">The setup</h2><p id="presentation-note"></p></div>
-    <div class="presentation-controls"><button type="button" class="secondary" data-present-action="previous" aria-label="Previous step"><svg class="icon"><use href="#i-back"/></svg></button><button type="button" class="primary" data-present-action="next">Next step<svg class="icon"><use href="#i-next"/></svg></button><button type="button" class="text-button" data-present-action="exit">Exit<span class="keycap">Esc</span></button></div>
+    <div class="presentation-controls"><label class="vision-perspective"><span>View</span><select data-vision-perspective aria-label="Presentation team vision"><option value="all">All vision</option><option value="blue">Blue team</option><option value="red">Red team</option></select></label><button type="button" class="secondary" data-present-action="previous" aria-label="Previous step"><svg class="icon"><use href="#i-back"/></svg></button><button type="button" class="primary" data-present-action="next">Next step<svg class="icon"><use href="#i-next"/></svg></button><button type="button" class="text-button" data-present-action="exit">Exit<span class="keycap">Esc</span></button></div>
   </section>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <dialog id="shortcuts-dialog" class="shortcuts-dialog"><div class="dialog-heading"><div><p class="eyebrow">Make the map your whiteboard</p><h2>A few useful controls.</h2></div><button type="button" class="icon-button" data-close-help aria-label="Close help"><svg class="icon"><use href="#i-close"/></svg></button></div><dl class="shortcut-list"><div><dt>Select &amp; move</dt><dd><kbd>S</kbd></dd></div><div><dt>Draw an arrow</dt><dd><kbd>A</kbd></dd></div><div><dt>Freehand draw</dt><dd><kbd>D</kbd></dd></div><div><dt>Erase</dt><dd><kbd>E</kbd></dd></div><div><dt>Pan map</dt><dd><kbd>H</kbd></dd></div><div><dt>Point to a position</dt><dd><kbd>P</kbd></dd></div><div><dt>Undo / redo</dt><dd><kbd>Ctrl Z</kbd> / <kbd>Ctrl Shift Z</kbd></dd></div><div><dt>Select multiple</dt><dd><kbd>Shift</kbd> + click</dd></div><div><dt>Delete selected</dt><dd><kbd>Delete</kbd></dd></div><div><dt>Present / exit</dt><dd><kbd>F</kbd> / <kbd>Esc</kbd></dd></div><div><dt>Step through a presentation</dt><dd><kbd>←</kbd> / <kbd>→</kbd></dd></div><div><dt>Play / pause in Present</dt><dd><kbd>Space</kbd></dd></div></dl><p class="dialog-tip">Build the first position. Add a next step to keep the same pieces and show what changes. Present to walk your team through the play.</p></dialog>
@@ -340,6 +343,8 @@
   <script src="diagram-history.js"></script>
   <script src="diagram-export.js"></script>
   <script src="playbook-data.js"></script>
+  <script src="assets/vision-terrain.js"></script>
+  <script src="vision-engine.js"></script>
   <script src="app.js"></script>
   <script src="playbook-ui.js"></script>
 </body>

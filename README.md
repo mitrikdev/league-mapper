@@ -19,6 +19,34 @@ A tactical workspace for explaining League of Legends scenarios, reviewing decis
 - **Export PNG** renders the current step with the visible pieces, arrows, vision ranges, and labels. It exports the full map, independently of camera zoom or pan.
 - If browser storage is unavailable or full, the interface asks you to download a copy. A malformed stored draft is preserved until you explicitly start a new play or load a file.
 
+## Team vision and fog of war
+
+Use **View → Blue team / Red team** above the map or in Present. The perspective applies across all steps, saves with the play, and supports undo. **All vision** returns to the full editing view. **New → Vision walkthrough** demonstrates an enemy hidden by river brush, revealed by an allied ward, then hidden again when an enemy control ward suppresses it.
+
+The model combines active allied sources and clips ordinary sight against the actual wall, brush, transparent-wall and base-gate grid. Enemies outside sight are omitted from the canvas, selection, layers and PNG. Known structures and coach annotations remain visible. Layer filters are display-only; hiding an individual unit or enabling **Vision disabled / inactive** removes its sight.
+
+Select a ward to choose **Stealth**, **Control**, or **Farsight**. Control wards reveal and suppress opposing stealth/farsight wards when their detection reaches them; the suppressing control ward is revealed to the affected team. Farsight uses an unobstructed radius. Sight-radius guides use game units and are hidden by default; they show maximum distance, while the fog shows terrain-limited coverage. A source placed in blocking terrain reports the problem in its details. A radius override is a simple custom source, not a complete ability simulation. The legacy Dim token option only changes appearance.
+
+| Source | Ordinary sight radius |
+| --- | ---: |
+| Champion / clone | 1350 |
+| Minion / cannon minion | 1200 |
+| Super minion / turret | 1350 |
+| Stealth / control ward | 900 |
+| Farsight ward | 500 |
+
+Turret detection uses a separate 1100-unit radius. Neutral units never grant team sight. Ward and minion radii come from Riot character data mirrored by [CommunityDragon](https://raw.communitydragon.org/latest/game/data/characters/yellowtrinket/yellowtrinket.bin.json); 1350 is the standard ordinary engine-default assumption. Farsight changes are described in [Riot patch 13.10](https://www.leagueoflegends.com/en-gb/news/game-updates/patch-13-10-notes/) and turret detection in [26.1](https://www.leagueoflegends.com/en-sg/news/game-updates/patch-26-1-notes/).
+
+### Accuracy and terrain provenance
+
+This is a **static planning model for the 2024 base Rift**, not a replica of the current server. The existing map artwork is byte-identical to the matching render in [FrankTheBoxMonster's NGRID data](https://github.com/FrankTheBoxMonster/LoL-NGRID-converter/tree/92943ed2b2d5e82c86d680e69f53f247c89aefee/SR_2024). Its 295 × 296 grid retains the original 50-unit cell flags. Artwork registration is measured (estimated 10 game units of alignment error), and fog edges are rasterized at cell resolution; token visibility uses exact distance and cell traversal.
+
+Brush uses connected regions and per-source line of sight, combined into team visibility. An outside source does not independently see through brush merely because a different ally reveals part of it. This conservative shared-brush interaction has not been validated against live-game behavior.
+
+Not simulated: later map/elemental changes, Faelights, champion camouflage/invisibility and ability vision, sweepers, ward lifetimes, Farsight trigger bursts/self-destruction, attack reveals, and visibility timing or memory. Faelight regions themselves changed in [26.3](https://www.leagueoflegends.com/en-gb/news/game-updates/patch-26-3-notes/), so the base-map model must not be treated as current-patch parity.
+
+Rebuild the bundled terrain data with `node tools/generate-vision-terrain.cjs`. The generator fetches a pinned game-data file, validates its SHA-256, and produces the browser/CommonJS asset. Source hashes, bounds, flags and limitations are embedded in `assets/vision-terrain.js`; the runtime makes no network requests for terrain.
+
 ## Controls
 
 | Key / action | Behavior |
@@ -53,6 +81,8 @@ Playback stops when you begin editing. Presentation mode allows navigation and p
 - `diagram-data.js`: individual diagram validation, including role badges and directional paths.
 - `diagram-history.js`: editor and full-playbook snapshots for undo/redo.
 - `diagram-export.js`: immutable export snapshots and PNG rendering.
+- `vision-engine.js`: terrain-aware sight, shared team fog, ward detection and suppression.
+- `assets/vision-terrain.js`: pinned 2024 base map flags, coordinate calibration and source metadata.
 - `styles.css`: responsive workspace, map tools, sequence strip, and presentation layout.
 - `assets/game-start-state.js`: full Rift starting arrangement.
 - `assets/export-assets.js`: embedded assets for PNG export when opening from disk.
@@ -67,6 +97,6 @@ With Node.js 18 or newer installed:
 node --test
 ```
 
-Tests use the built-in runner without dependencies. They cover imports, safe labels, scene isolation, whole-playbook history, focused-field draft recovery, playback, presentation guards, selection, and export geometry. Browser checks remain necessary for layout and physical pointer interactions.
+Tests use the built-in runner without dependencies. They cover imports, safe labels, scene isolation, whole-playbook history, focused-field draft recovery, playback, presentation guards, selection, and export geometry. Vision tests also cover wall/brush/gate behavior, team sharing, ward detection, fog-aware selection and PNGs, range overrides, and real-terrain examples. Browser checks remain necessary for layout and physical pointer interactions.
 
 The editor uses `assets/sr.webp`, retaining the original map resolution with a smaller download. `assets/sr.png` remains the source. To rebuild the compressed asset, install Pillow and run `python tools/build-map-asset.py`.

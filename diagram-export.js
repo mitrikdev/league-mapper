@@ -24,9 +24,12 @@
   function createSnapshot(options) {
     const copiedState = JSON.parse(JSON.stringify(options.state));
     const copiedFilters = { ...options.filters };
+    const vision = options.vision === undefined ? undefined : JSON.parse(JSON.stringify(options.vision));
+    const fogEnabled = vision?.perspective === "blue" || vision?.perspective === "red";
+    const visibleIds = fogEnabled ? new Set(vision.visibleIds) : null;
     return {
       items: copiedState.items
-        .filter((item) => options.isItemVisible(item, copiedFilters))
+        .filter((item) => options.isItemVisible(item, copiedFilters) && (!visibleIds || visibleIds.has(item.id)))
         .map((item) => ({ ...item, asset: options.assetFor(item) })),
       paths: copiedFilters.drawings ? copiedState.paths : [],
       diagramWidth: options.diagramWidth,
@@ -34,7 +37,8 @@
       showRanges: options.showRanges,
       showLabels: options.showLabels,
       fontFamily: options.fontFamily || "system-ui, sans-serif",
-      filename: options.filename
+      filename: options.filename,
+      ...(vision === undefined ? {} : { vision })
     };
   }
 
@@ -73,6 +77,13 @@
       context.globalAlpha = 0.88;
       context.drawImage(sightImage, 0, 0, size, size);
       context.globalAlpha = 1;
+    }
+
+    if (snapshot.vision?.perspective === "blue" || snapshot.vision?.perspective === "red") {
+      context.fillStyle = "rgba(7,13,22,.82)";
+      for (const [x, y, width, height] of snapshot.vision.fogRects) {
+        context.fillRect(x / 100 * size, y / 100 * size, width / 100 * size, height / 100 * size);
+      }
     }
 
     for (const path of snapshot.paths) {
@@ -124,11 +135,16 @@
       const y = centerY - iconSize / 2;
       context.globalAlpha = (item.opacity / 100) * (item.cloaked ? 0.4 : 1);
 
-      if (item.range > 0 && snapshot.showRanges) {
+      const worldRanges = snapshot.vision?.radiusById;
+      const hasWorldRadius = worldRanges && Object.hasOwn(worldRanges, item.id);
+      const rangeDiameter = hasWorldRadius
+        ? 2 * worldRanges[item.id] / snapshot.vision.mapUnits * size
+        : item.range * cssScale;
+      if (rangeDiameter > 0 && snapshot.showRanges) {
         context.beginPath();
         context.lineWidth = 2 * cssScale;
         // CSS uses border-box sizing, so the stroke stays inside the range diameter.
-        const radius = Math.max(0, item.range / 2 - 1) * cssScale;
+        const radius = Math.max(0, rangeDiameter / 2 - context.lineWidth / 2);
         context.arc(centerX, centerY, radius, 0, Math.PI * 2);
         context.strokeStyle = teamColor(item.team);
         context.stroke();
@@ -149,7 +165,18 @@
         context.fillText(item.role, centerX, centerY);
       } else {
         const image = await getImage(item.asset);
+        const inactive = item.visionDisabled || snapshot.vision?.disabledWardIds?.includes(item.id);
+        // The editor filters the image and its outline together when sight is inactive.
+        context.filter = inactive ? "grayscale(1)" : "none";
         context.drawImage(image, x, y, iconSize, iconSize);
+        if (item.type === "ward" && (item.wardKind === "control" || item.wardKind === "farsight")) {
+          context.beginPath();
+          context.lineWidth = 2 * cssScale;
+          context.arc(centerX, centerY, iconSize / 2 + 2 * cssScale, 0, Math.PI * 2);
+          context.strokeStyle = item.wardKind === "control" ? "#ec6c97" : "#81d5ec";
+          context.stroke();
+        }
+        context.filter = "none";
       }
 
       if (snapshot.showLabels && (!item.role || item.label !== item.role)) {

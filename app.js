@@ -58,6 +58,49 @@ let quickViewDrag = null;
 let pendingNewMode = "default";
 let currentDocumentTitle = "Game Start";
 let moveAnimation = null;
+let visionEngine = null;
+let visionResult = null;
+let visionVisibleIds = null;
+let visionInputKey = '';
+
+function refreshVision() {
+  if (!window.VisionEngine || !window.VISION_TERRAIN) return;
+  visionEngine ||= window.VisionEngine.create(window.VISION_TERRAIN);
+  const perspective = state.vision?.perspective || 'all';
+  const key = JSON.stringify([perspective, state.items.map(item => [item.id, item.type, item.team, item.x, item.y, item.hidden, item.wardKind, item.visionRadius, item.visionDisabled])]);
+  if (key !== visionInputKey) {
+    visionResult = visionEngine.compute(state.items, perspective);
+    visionVisibleIds = new Set(visionResult.visibleIds);
+    visionInputKey = key;
+  }
+}
+
+function renderVision() {
+  const layer = document.querySelector('#vision-layer');
+  if (!layer || !visionResult) return;
+  layer.replaceChildren();
+  if (visionResult.perspective !== 'all') {
+    const shade = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    shade.setAttribute('d', visionResult.fogRects.map(([x,y,w,h]) => 'M'+x+','+y+'h'+w+'v'+h+'h'+(-w)+'Z').join(''));
+    layer.appendChild(shade);
+  }
+  document.querySelectorAll('[data-vision-perspective]').forEach(input => { input.value = visionResult.perspective; });
+  const status = document.querySelector('#vision-status');
+  if (status) status.textContent = visionResult.perspective === 'all' ? 'All vision · Base Rift 2024' : (visionResult.perspective === 'blue' ? 'Blue' : 'Red') + ' vision · ' + visionResult.sourceCount + ' active sources · Base Rift 2024';
+}
+
+function setVisionPerspective(perspective) {
+  if (!['all','blue','red'].includes(perspective)) return;
+  if (window.PlaybookUI?.setPerspective) window.PlaybookUI.setPerspective(perspective);
+  else {
+    if ((state.vision?.perspective || 'all') === perspective) return;
+    recordHistory();
+    state.vision = { perspective };
+    clearSelection();
+    render();
+  }
+  if (perspective !== 'all') document.querySelector('[data-roster-team="' + perspective + '"]')?.click();
+}
 
 contextMenu.className = "context-menu hidden";
 document.body.appendChild(contextMenu);
@@ -243,6 +286,7 @@ function normalizeState(nextState) {
 }
 function isItemVisible(item, currentFilters = filters) {
   if (item.hidden || currentFilters[item.team] === false) return false;
+  if (visionResult?.perspective !== 'all' && visionVisibleIds && !visionVisibleIds.has(item.id)) return false;
   if (item.type === "ward" && !currentFilters.ward) return false;
   if (["minion", "cannon", "super-minion"].includes(item.type) && !currentFilters.minion) return false;
   return true;
@@ -260,6 +304,12 @@ function setLayerFilter(key, checked) {
 }
 
 function render() {
+  refreshVision();
+  if (visionResult?.perspective !== 'all' && visionVisibleIds) {
+    selectedIds = new Set([...selectedIds].filter(id => visionVisibleIds.has(id)));
+    if (!selectedIds.has(selectedId)) selectedId = [...selectedIds].at(-1) || null;
+  }
+  renderVision();
   objectLayer.innerHTML = "";
 
   for (const item of state.items) {
@@ -274,13 +324,17 @@ function render() {
     token.style.width = `${hitSize}px`;
     token.style.height = `${hitSize}px`;
     token.style.opacity = String((item.opacity / 100) * (item.cloaked ? 0.4 : 1));
-    token.style.setProperty("--range", `${item.range}px`);
+    const worldRadius = visionResult?.radiusById[item.id];
+    const hasWorldRange = typeof worldRadius === 'number';
+    token.style.setProperty('--range', hasWorldRange ? (worldRadius * 2 / visionResult.mapUnits * 100) + 'cqw' : item.range + 'px');
+    if (item.type === 'ward') token.classList.add('ward-' + (item.wardKind || 'stealth'));
+    if (item.visionDisabled || visionResult?.disabledWardIds.includes(item.id)) token.classList.add('vision-inactive');
     token.style.setProperty("--icon-size", `${iconSize}px`);
     token.title = item.label;
     token.setAttribute("aria-label", `${item.team} ${item.label}`);
     token.setAttribute("aria-pressed", String(selectedIds.has(item.id)));
 
-    if (item.range > 0) {
+    if (hasWorldRange ? worldRadius > 0 : item.range > 0) {
       const ring = document.createElement("span");
       ring.className = "range-ring";
       token.appendChild(ring);
@@ -358,11 +412,26 @@ function renderProperties() {
   propSize.value = item.size;
   propCloaked.checked = Boolean(item.cloaked);
   propRange.value = item.range;
+  document.querySelector('#vision-properties')?.classList.toggle('hidden', item.team === 'neutral');
+  const wardKind = document.querySelector('#prop-ward-kind');
+  const wardLabel = document.querySelector('#ward-kind-field');
+  if (wardKind) { wardKind.classList.toggle('hidden', item.type !== 'ward'); wardKind.value = item.wardKind || 'stealth'; }
+  wardLabel?.classList.toggle('hidden', item.type !== 'ward');
+  const radiusInput = document.querySelector('#prop-vision-radius');
+  if (radiusInput) radiusInput.value = item.visionRadius ?? '';
+  const disabledInput = document.querySelector('#prop-vision-disabled');
+  if (disabledInput) disabledInput.checked = Boolean(item.visionDisabled);
+  const sourceStatus = document.querySelector('#vision-source-status');
+  if (sourceStatus) {
+    const radius = visionResult?.radiusById[item.id] || 0;
+    sourceStatus.textContent = visionResult?.blockedSourceIds.includes(item.id) ? 'Inside blocking terrain. Move to walkable ground to provide sight.' : item.visionDisabled ? 'This unit provides no team sight.' : visionResult?.disabledWardIds.includes(item.id) ? 'Sight suppressed by an enemy control ward.' : radius > 0 ? radius + ' sight units · ' + (item.wardKind === 'farsight' ? 'Unobstructed Farsight radius.' : 'Walls and brush limit coverage.') : 'No ordinary team sight. Set a radius to model a custom source.';
+  }
 }
 
 function renderLayers() {
   layerList.replaceChildren();
   [...state.items].reverse().forEach((item) => {
+    if (visionResult?.perspective !== 'all' && visionVisibleIds && !visionVisibleIds.has(item.id)) return;
     const row = document.createElement("div");
     row.className = `layer-row${selectedIds.has(item.id) ? " active" : ""}${item.hidden ? " is-hidden" : ""}`;
     row.dataset.id = item.id;
@@ -966,9 +1035,11 @@ function loadJson(file) {
 }
 async function exportPng() {
   try {
+    refreshVision();
     const snapshot = DiagramExport.createSnapshot({
       state,
       filters,
+      vision: visionResult,
       diagramWidth: diagram.clientWidth,
       showSight: !document.querySelector("#sight-layer").classList.contains("hidden"),
       showRanges: !diagram.classList.contains("hide-ranges"),
@@ -1348,6 +1419,18 @@ layerList.addEventListener("click", (event) => {
     const item = state.items.find((candidate) => candidate.id === row.dataset.id);
     centerMapOnItem(item);
   }
+});
+
+document.querySelectorAll('[data-vision-perspective]').forEach(input => input.addEventListener('change', () => setVisionPerspective(input.value)));
+document.querySelector('#prop-ward-kind')?.addEventListener('change', event => {
+  if (selectedItem()?.type === 'ward' && ['stealth','control','farsight'].includes(event.target.value)) updateSelected({ wardKind: event.target.value });
+});
+document.querySelector('#prop-vision-disabled')?.addEventListener('change', event => updateSelected({ visionDisabled: event.target.checked }));
+document.querySelector('#prop-vision-radius')?.addEventListener('change', event => {
+  const text = event.target.value.trim();
+  const radius = text === '' ? undefined : Number(text);
+  if (radius !== undefined && (!Number.isFinite(radius) || radius < 0 || radius > 2500)) { renderProperties(); return; }
+  updateSelected({ visionRadius: radius });
 });
 
 propLabel.addEventListener("input", () => updateSelected({ label: propLabel.value }));

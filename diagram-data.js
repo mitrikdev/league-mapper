@@ -4,6 +4,7 @@
   const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
   const colorPattern = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
   const teams = new Set(["blue", "red", "neutral"]);
+  const roles = new Set(["TOP", "JGL", "MID", "BOT", "SUP"]);
 
   function invalid(field, requirement) {
     throw new Error(`${field} ${requirement}.`);
@@ -56,6 +57,9 @@
       if (!supportedTypes.has(item.type)) invalid(`${field} type`, "is not supported");
       if (!teams.has(item.team)) invalid(`${field} team`, "must be blue, red or neutral");
       if (typeof item.label !== "string") invalid(`${field} label`, "must be text");
+      if (item.role !== undefined && !roles.has(item.role)) {
+        invalid(`${field} role`, "must be TOP, JGL, MID, BOT or SUP");
+      }
 
       return {
         id: itemId,
@@ -67,6 +71,7 @@
         range: number(item.range, `${field} range`, 0, 220),
         opacity: number(item.opacity, `${field} opacity`, 0, 100),
         label: item.label,
+        ...(item.role === undefined ? {} : { role: item.role }),
         hidden: optionalBoolean(item.hidden, `${field} hidden`),
         locked: optionalBoolean(item.locked, `${field} locked`),
         cloaked: optionalBoolean(item.cloaked, `${field} cloaked`),
@@ -82,8 +87,12 @@
       if (typeof color !== "string" || !colorPattern.test(color)) {
         invalid(`${field} color`, "must be a hexadecimal color");
       }
+      if (path.arrow !== undefined && typeof path.arrow !== "boolean") {
+        invalid(`${field} arrow`, "must be true or false");
+      }
       return {
         color,
+        ...(path.arrow === undefined ? {} : { arrow: path.arrow }),
         width: number(path.width === undefined ? 7 : path.width, `${field} width`, 1, 7),
         points: path.points.map((rawPoint, pointIndex) => {
           const pointField = `${field} point ${pointIndex + 1}`;

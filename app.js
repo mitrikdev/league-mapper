@@ -57,6 +57,7 @@ let lastLayerClick = { id: null, time: 0 };
 let quickViewDrag = null;
 let pendingNewMode = "default";
 let currentDocumentTitle = "Game Start";
+let moveAnimation = null;
 
 contextMenu.className = "context-menu hidden";
 document.body.appendChild(contextMenu);
@@ -172,8 +173,16 @@ function selectItemsInBox(start, end) {
   render();
 }
 
-function addItem(type, team, x = 50, y = 50) {
-  const template = defaults[type];
+function visibleMapCenter() {
+  const rect = canvasWrap.getBoundingClientRect();
+  return pointFromEvent({ clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 });
+}
+
+function addItem(type, team, x, y) {
+  if (!defaults[type]) return;
+  const center = visibleMapCenter();
+  x ??= center.x;
+  y ??= center.y;
   recordHistory();
   const item = createItem(type, team, x, y);
   state.items.push(item);
@@ -268,7 +277,8 @@ function render() {
     token.style.setProperty("--range", `${item.range}px`);
     token.style.setProperty("--icon-size", `${iconSize}px`);
     token.title = item.label;
-    token.setAttribute("aria-label", item.label);
+    token.setAttribute("aria-label", `${item.team} ${item.label}`);
+    token.setAttribute("aria-pressed", String(selectedIds.has(item.id)));
 
     if (item.range > 0) {
       const ring = document.createElement("span");
@@ -276,15 +286,23 @@ function render() {
       token.appendChild(ring);
     }
 
-    const img = document.createElement("img");
-    img.className = "token-img";
-    img.src = assetFor(item);
-    img.alt = "";
-    token.appendChild(img);
+    if (item.role) {
+      const badge = document.createElement("span");
+      badge.className = "role-badge";
+      badge.textContent = item.role;
+      token.classList.add("role-token");
+      token.appendChild(badge);
+    } else {
+      const img = document.createElement("img");
+      img.className = "token-img";
+      img.src = assetFor(item);
+      img.alt = "";
+      token.appendChild(img);
+    }
 
     const label = document.createElement("span");
     label.className = "token-label";
-    label.textContent = item.label;
+    label.textContent = item.role === item.label ? "" : item.label;
     token.appendChild(label);
 
     objectLayer.appendChild(token);
@@ -299,11 +317,31 @@ function render() {
     polyline.setAttribute("stroke-width", String(path.width || 7));
     polyline.setAttribute("stroke", path.color || "#f0d66a");
     polyline.setAttribute("points", path.points.map((point) => `${point.x * 10},${point.y * 10}`).join(" "));
+    if (path.arrow) {
+      const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+      marker.id = `path-arrow-${index}`;
+      marker.setAttribute("viewBox", "0 0 12 12");
+      marker.setAttribute("refX", "10");
+      marker.setAttribute("refY", "6");
+      marker.setAttribute("markerWidth", String(Math.max(10, path.width * 3)));
+      marker.setAttribute("markerHeight", String(Math.max(10, path.width * 3)));
+      marker.setAttribute("markerUnits", "userSpaceOnUse");
+      marker.setAttribute("orient", "auto");
+      const tip = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+      tip.setAttribute("points", "1,1 11,6 1,11");
+      tip.setAttribute("fill", path.color);
+      marker.appendChild(tip);
+      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      defs.appendChild(marker);
+      drawLayer.appendChild(defs);
+      polyline.setAttribute("marker-end", `url(#path-arrow-${index})`);
+    }
     drawLayer.appendChild(polyline);
   });
 
   renderProperties();
   renderLayers();
+  window.PlaybookUI?.onRender();
 }
 
 function renderProperties() {
@@ -473,11 +511,23 @@ function duplicateSelection() {
 }
 
 function setTool(tool) {
+  if (!["select", "arrow", "draw", "erase", "pan", "ping"].includes(tool)) return;
   activeTool = tool;
+  diagram.dataset.tool = tool;
   document.querySelectorAll(".tool-button").forEach((button) => {
     button.classList.toggle("active", button.dataset.tool === tool);
+    button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
   });
-  drawSettings.classList.toggle("hidden", tool !== "draw");
+  drawSettings.classList.toggle("hidden", !["draw", "arrow"].includes(tool));
+  const hint = document.querySelector("#canvas-hint");
+  if (hint) hint.textContent = {
+    select: "Drag players to move · Drag empty space to select · Shift to select more",
+    arrow: "Drag from start to destination to show a move",
+    draw: "Draw directly on the map to explain your idea",
+    erase: "Click a player or a line to remove it",
+    pan: "Drag the map to look around · Scroll to zoom",
+    ping: "Click the map to mark a point of interest"
+  }[tool];
 }
 
 function updateSelected(patch) {
@@ -634,6 +684,7 @@ function showContextMenu(event, actions) {
 }
 
 function lerpItemsTo(items, targetPoint) {
+  if (moveAnimation !== null) cancelAnimationFrame(moveAnimation);
   items = items.filter((item) => !item.locked);
   if (!items.length) return;
   recordHistory();
@@ -660,10 +711,10 @@ function lerpItemsTo(items, targetPoint) {
       start.item.y = clamp(start.y + dy * eased, 0, 100);
     });
     render();
-    if (t < 1) requestAnimationFrame(frame);
+    moveAnimation = t < 1 ? requestAnimationFrame(frame) : null;
   }
 
-  requestAnimationFrame(frame);
+  moveAnimation = requestAnimationFrame(frame);
 }
 
 function distanceToSegment(point, start, end) {
@@ -783,7 +834,8 @@ function safeFilename(value, fallback = "rift-diagram") {
 
 function setDocumentTitle(title) {
   currentDocumentTitle = title || "Untitled Rift Diagram";
-  documentTitle.textContent = currentDocumentTitle;
+  if (documentTitle.tagName === "INPUT") documentTitle.value = currentDocumentTitle;
+  else documentTitle.textContent = currentDocumentTitle;
 }
 
 function normalizeJsonFilename(filename) {
@@ -796,7 +848,9 @@ function requestSaveFilename(defaultName = "rift-diagram") {
   return normalizeJsonFilename(window.prompt("Save Rift Diagram as:", defaultName));
 }
 
-function saveJson(filename = requestSaveFilename()) {
+function saveJson(filename) {
+  if (window.PlaybookUI) return window.PlaybookUI.save(filename);
+  filename ??= requestSaveFilename();
   if (!filename) return false;
   download(filename, JSON.stringify(state, null, 2), "application/json");
   setDocumentTitle(titleFromFilename(filename));
@@ -804,11 +858,13 @@ function saveJson(filename = requestSaveFilename()) {
 }
 
 function resetMap({ record = true } = {}) {
+  if (window.PlaybookUI) return window.PlaybookUI.newPlay("default", record);
   if (record) recordHistory();
   seedDefaultMap();
 }
 
 function resetBlankMap({ record = true } = {}) {
+  if (window.PlaybookUI) return window.PlaybookUI.newPlay("blank", record);
   if (record) recordHistory();
   state = { version: 1, items: [], paths: [] };
   clearSelection();
@@ -871,13 +927,17 @@ function seedDefaultMap() {
 function showNewConfirm(mode = "default") {
   pendingNewMode = mode;
   newConfirmModal.classList.remove("hidden");
+  document.querySelector(".app-shell").inert = true;
+  document.querySelector("#new-cancel").focus();
 }
 
 function hideNewConfirm() {
   newConfirmModal.classList.add("hidden");
+  document.querySelector(".app-shell").inert = false;
 }
 
 function loadJson(file) {
+  if (window.PlaybookUI) return window.PlaybookUI.load(file);
   const reportError = (message) => {
     window.alert(`Could not load this diagram. ${message}\nYour current diagram has been kept.`);
   };
@@ -945,7 +1005,7 @@ document.querySelectorAll(".brush-color").forEach((button) => {
 });
 
 document.querySelectorAll(".palette-item").forEach((button) => {
-  button.addEventListener("click", () => addItem(button.dataset.add, button.dataset.team, 50, 50));
+  button.addEventListener("click", () => addItem(button.dataset.add, button.dataset.team));
   button.addEventListener("dragstart", (event) => {
     event.dataTransfer.setData("application/json", JSON.stringify({
       type: button.dataset.add,
@@ -966,6 +1026,7 @@ diagram.addEventListener("dragstart", (event) => {
 
 diagram.addEventListener("drop", (event) => {
   event.preventDefault();
+  if (window.PlaybookUI?.isPresenting()) return;
   const payload = event.dataTransfer.getData("application/json");
   if (!payload) return;
   const item = JSON.parse(payload);
@@ -994,6 +1055,7 @@ diagram.addEventListener("dblclick", (event) => {
 
 diagram.addEventListener("contextmenu", (event) => {
   event.preventDefault();
+  if (window.PlaybookUI?.isPresenting()) return;
   if (suppressNextContextMenu) {
     suppressNextContextMenu = false;
     hideContextMenu();
@@ -1074,7 +1136,7 @@ diagram.addEventListener("pointerdown", (event) => {
 
   const token = event.target.closest(".token");
 
-  if (event.button === 1 || event.button === 2) {
+  if (event.button === 1 || event.button === 2 || (event.button === 0 && activeTool === "pan")) {
     event.preventDefault();
     panDrag = {
       button: event.button,
@@ -1089,7 +1151,7 @@ diagram.addEventListener("pointerdown", (event) => {
     return;
   }
 
-  if (event.button !== 0) return;
+  if (event.button !== 0 || window.PlaybookUI?.isPresenting()) return;
   event.preventDefault();
   diagram.focus({ preventScroll: true });
 
@@ -1104,11 +1166,14 @@ diagram.addEventListener("pointerdown", (event) => {
     return;
   }
 
-  if (activeTool === "draw") {
-    recordHistory();
-    activePath = { color: brushColor, width: brushWidth, points: [pointFromEvent(event)] };
-    state.paths.push(activePath);
-    render();
+  if (activeTool === "ping") {
+    const point = pointFromEvent(event);
+    addItem("ping", "neutral", point.x, point.y);
+    return;
+  }
+
+  if (activeTool === "draw" || activeTool === "arrow") {
+    activePath = { color: brushColor, width: brushWidth, points: [pointFromEvent(event)], ...(activeTool === "arrow" ? { arrow: true } : {}) };
     diagram.setPointerCapture(event.pointerId);
     return;
   }
@@ -1183,7 +1248,15 @@ diagram.addEventListener("pointermove", (event) => {
   }
 
   if (activePath) {
-    activePath.points.push(pointFromEvent(event));
+    const point = pointFromEvent(event);
+    const previous = activePath.points.at(-1);
+    if (Math.hypot(point.x - previous.x, point.y - previous.y) < 0.08) return;
+    if (!state.paths.includes(activePath)) {
+      recordHistory();
+      state.paths.push(activePath);
+    }
+    if (activePath.arrow) activePath.points[1] = point;
+    else activePath.points.push(point);
     render();
   }
 });
@@ -1219,6 +1292,10 @@ diagram.addEventListener("pointerup", (event) => {
 });
 
 function clearPointerInteraction() {
+  if (moveAnimation !== null) {
+    cancelAnimationFrame(moveAnimation);
+    moveAnimation = null;
+  }
   drag = null;
   panDrag = null;
   activePath = null;
@@ -1229,6 +1306,15 @@ function clearPointerInteraction() {
 
 diagram.addEventListener("pointercancel", clearPointerInteraction);
 diagram.addEventListener("lostpointercapture", clearPointerInteraction);
+
+objectLayer.addEventListener("click", (event) => {
+  if (event.detail !== 0 || window.PlaybookUI?.isPresenting()) return;
+  const token = event.target.closest(".token");
+  if (!token) return;
+  selectOnly(token.dataset.id, { visibleOnly: true });
+  render();
+  [...objectLayer.children].find((item) => item.dataset.id === selectedId)?.focus();
+});
 
 layerList.addEventListener("click", (event) => {
   const row = event.target.closest(".layer-row");
@@ -1301,7 +1387,9 @@ document.querySelector("#export-png").addEventListener("click", exportPng);
 document.querySelector("#new-cancel").addEventListener("click", hideNewConfirm);
 document.querySelector("#new-proceed").addEventListener("click", () => {
   hideNewConfirm();
-  if (pendingNewMode === "blank") {
+  if (window.PlaybookUI) {
+    window.PlaybookUI.newPlay(pendingNewMode);
+  } else if (pendingNewMode === "blank") {
     resetBlankMap();
   } else {
     resetMap();
@@ -1310,7 +1398,9 @@ document.querySelector("#new-proceed").addEventListener("click", () => {
 document.querySelector("#new-save-proceed").addEventListener("click", () => {
   if (!saveJson()) return;
   hideNewConfirm();
-  if (pendingNewMode === "blank") {
+  if (window.PlaybookUI) {
+    window.PlaybookUI.newPlay(pendingNewMode);
+  } else if (pendingNewMode === "blank") {
     resetBlankMap();
   } else {
     resetMap();
@@ -1416,7 +1506,8 @@ quickViewMenu.addEventListener("pointerup", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  const isTextEntry = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+  if (window.PlaybookUI?.handleKeydown(event)) return;
+  const isTextEntry = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
 
   if (event.key === "Escape") {
     hideContextMenu();
@@ -1449,6 +1540,8 @@ document.addEventListener("keydown", (event) => {
 
   if (!isTextEntry && !event.ctrlKey && !event.metaKey && !event.altKey) {
     const key = event.key.toLowerCase();
+    const extraTools = { a: "arrow", h: "pan", p: "ping" };
+    if (extraTools[key]) { event.preventDefault(); setTool(extraTools[key]); return; }
     if (key === "s") {
       event.preventDefault();
       setTool("select");

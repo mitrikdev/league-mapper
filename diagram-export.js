@@ -89,10 +89,32 @@
       context.lineCap = "round";
       context.lineJoin = "round";
       context.stroke();
+
+      if (path.arrow && path.points.length > 1) {
+        const end = path.points.at(-1);
+        const previous = path.points.slice(0, -1).reverse().find((point) => point.x !== end.x || point.y !== end.y);
+        if (previous) {
+          const angle = Math.atan2(end.y - previous.y, end.x - previous.x);
+          const markerScale = Math.max(10, (path.width || 7) * 3) * svgScale / 12;
+          const cosine = Math.cos(angle);
+          const sine = Math.sin(angle);
+          // Match the SVG marker's 12x12 viewBox, reference (10,6), and triangle.
+          const vertices = [[-9, -5], [1, 0], [-9, 5]].map(([x, y]) => ({
+            x: end.x / 100 * size + (x * cosine - y * sine) * markerScale,
+            y: end.y / 100 * size + (x * sine + y * cosine) * markerScale
+          }));
+          context.beginPath();
+          context.moveTo(vertices[0].x, vertices[0].y);
+          context.lineTo(vertices[1].x, vertices[1].y);
+          context.lineTo(vertices[2].x, vertices[2].y);
+          context.closePath();
+          context.fillStyle = path.color || "#f0d66a";
+          context.fill();
+        }
+      }
     }
 
     for (const item of snapshot.items) {
-      const image = await getImage(item.asset);
       const cssIconSize = Math.max(item.size * 4, 6);
       const iconSize = cssIconSize * cssScale;
       const hitSize = Math.max(cssIconSize + 8, 16) * cssScale;
@@ -112,16 +134,32 @@
         context.stroke();
       }
 
-      context.drawImage(image, x, y, iconSize, iconSize);
+      if (item.role) {
+        context.beginPath();
+        context.lineWidth = 1.5 * cssScale;
+        context.arc(centerX, centerY, Math.max(0, iconSize / 2 - context.lineWidth / 2), 0, Math.PI * 2);
+        context.fillStyle = item.team === "red" ? "#cc3853" : item.team === "blue" ? "#1976cf" : "#806729";
+        context.fill();
+        context.strokeStyle = "rgba(255,255,255,.85)";
+        context.stroke();
+        context.font = `800 ${cssIconSize * 0.34 * cssScale}px ${snapshot.fontFamily}`;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillStyle = "#ffffff";
+        context.fillText(item.role, centerX, centerY);
+      } else {
+        const image = await getImage(item.asset);
+        context.drawImage(image, x, y, iconSize, iconSize);
+      }
 
-      if (snapshot.showLabels) {
-        context.font = `700 ${12 * cssScale}px ${snapshot.fontFamily}`;
+      if (snapshot.showLabels && (!item.role || item.label !== item.role)) {
+        context.font = `600 ${10 * cssScale}px ${snapshot.fontFamily}`;
         context.textAlign = "center";
         context.textBaseline = "top";
         context.lineWidth = 2 * cssScale;
         context.strokeStyle = "rgba(0,0,0,.75)";
         context.fillStyle = "#f3f6f2";
-        const labelY = centerY + hitSize / 2 + 5 * cssScale;
+        const labelY = centerY + hitSize / 2 + 3 * cssScale;
         const label = fitLabel(context, item.label, 110 * cssScale);
         context.strokeText(label, centerX, labelY);
         context.fillText(label, centerX, labelY);

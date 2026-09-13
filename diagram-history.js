@@ -19,6 +19,7 @@ function restoreSelection(snapshot) {
 function snapshotEditor() {
   return {
     state: cloneState(state),
+    ...(window.PlaybookUI ? { playbook: window.PlaybookUI.snapshot() } : {}),
     title: currentDocumentTitle,
     selection: selectionSnapshot()
   };
@@ -27,6 +28,7 @@ function snapshotEditor() {
 function restoreEditor(snapshot) {
   isRestoringHistory = true;
   try {
+    if (snapshot.playbook && window.PlaybookUI) window.PlaybookUI.restore(snapshot.playbook);
     state = normalizeState(cloneState(snapshot.state));
     restoreSelection(snapshot.selection);
     setDocumentTitle(snapshot.title || "Untitled Rift Diagram");
@@ -39,16 +41,20 @@ function restoreEditor(snapshot) {
 function recordHistory() {
   if (isRestoringHistory) return;
   undoStack.push(snapshotEditor());
+  if (undoStack.length > 80) undoStack.shift();
   redoStack = [];
+  window.PlaybookUI?.updateHistory();
 }
 
 function undoEditor() {
+  clearPointerInteraction();
   if (!undoStack.length) return;
   redoStack.push(snapshotEditor());
   restoreEditor(undoStack.pop());
 }
 
 function redoEditor() {
+  clearPointerInteraction();
   if (!redoStack.length) return;
   undoStack.push(snapshotEditor());
   restoreEditor(redoStack.pop());

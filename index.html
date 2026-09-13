@@ -1,56 +1,94 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Rift Diagram Studio</title>
-    <link rel="stylesheet" href="styles.css">
-  </head>
-  <body>
-    <div class="app-shell">
-      <aside class="sidebar left-panel" aria-label="Tools">
-        <div class="brand">
-          <div class="brand-mark">R</div>
-          <div>
-            <h1>Rift Diagram Studio</h1>
-            <p>No login, local saved and loads</p>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141a1d">
+  <meta name="description" content="Build, explain, and present League of Legends plays. A simple tactical whiteboard for your team.">
+  <title>Rift / Playbook</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-select" viewBox="0 0 24 24"><path d="m5 3 14 10-7 1-3 7z"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19 19 5M7 5h12v12"/></symbol>
+    <symbol id="i-draw" viewBox="0 0 24 24"><path d="m4 20 4-1L20 7l-3-3L5 16zm10-13 3 3"/></symbol>
+    <symbol id="i-erase" viewBox="0 0 24 24"><path d="m3 15 9-10 9 8-7 7H8zm5 5h13M8 10l9 8"/></symbol>
+    <symbol id="i-pan" viewBox="0 0 24 24"><path d="M8 13V6a2 2 0 0 1 4 0v6-8a2 2 0 0 1 4 0v8-5a2 2 0 0 1 4 0v9c0 4-2 6-6 6h-1c-2 0-4-1-5-3l-4-6a2 2 0 0 1 3-2z"/></symbol>
+    <symbol id="i-ping" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol>
+    <symbol id="i-present" viewBox="0 0 24 24"><path d="M3 4h18M5 4v12h14V4M12 16v5m-4 0 4-3 4 3"/><path d="m10 7 5 3-5 3z"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 10h10a6 6 0 0 1 0 12M4 10l5-5M4 10l5 5" transform="translate(0 -3)"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M20 10H10a6 6 0 0 0 0 12m10-12-5-5m5 5-5 5" transform="translate(0 -3)"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><path d="m8 8 8 8m0-8-8 8"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 19V5h7l2 3h9v11z"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 8a3 3 0 0 1 6 1c0 2-3 2-3 4m0 3v.1"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <a class="brand" href="./" aria-label="Rift Playbook home">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="m4 21 8-15h12l-8 15z"/><path d="m10 21 8-15"/></svg></span>
+        <span>Rift <span class="brand-slash">/</span> <strong>Playbook</strong></span>
+      </a>
+      <div class="document-meta">
+        <input id="document-title" class="document-title" type="text" maxlength="120" aria-label="Play name" value="Untitled play" title="Rename this play">
+        <span id="save-status" class="save-status" role="status">Saved on this device</span>
+      </div>
+      <div class="file-actions">
+        <div class="menu-button">
+          <button id="new-map" class="secondary" type="button" aria-haspopup="true">New <svg class="icon small"><use href="#i-down"/></svg></button>
+          <div id="new-menu" class="dropdown-menu hidden">
+            <button type="button" data-new-mode="dragon"><strong>Dragon setup</strong><span>Start with a ready-to-explain scenario</span></button>
+            <button type="button" data-new-mode="default"><strong>Full map</strong><span>All structures and jungle camps</span></button>
+            <button type="button" data-new-mode="blank"><strong>Blank canvas</strong><span>Build a play from scratch</span></button>
           </div>
         </div>
+        <button id="save-json" class="secondary" type="button"><svg class="icon"><use href="#i-save"/></svg><span>Save play</span></button>
+        <button id="load-json" class="secondary" type="button"><svg class="icon"><use href="#i-folder"/></svg><span>Load</span></button>
+        <button id="export-png" class="secondary" type="button"><svg class="icon"><use href="#i-image"/></svg><span>Export PNG</span></button>
+        <span class="action-divider" aria-hidden="true"></span>
+        <button id="present-button" class="primary" type="button"><svg class="icon"><use href="#i-present"/></svg>Present</button>
+        <input id="file-input" type="file" accept="application/json,.json" hidden>
+      </div>
+    </header>
 
-        <section class="panel-section">
-          <h2>Tools</h2>
-          <div class="tool-grid" role="toolbar" aria-label="Editor tools">
-            <button class="tool-button active" data-tool="select" title="Select and move" aria-label="Select and move">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l12 9-6 1.5L8 21z"/></svg>
-              <span>S</span>
-            </button>
-            <button class="tool-button" data-tool="draw" title="Draw path" aria-label="Draw path">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 5l3 3"/></svg>
-              <span>D</span>
-            </button>
-            <button class="tool-button" data-tool="erase" title="Erase item or path" aria-label="Erase item or path">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15l8-8 7 7-5 5H8z"/><path d="M8 19h12"/></svg>
-              <span>E</span>
-            </button>
-          </div>
-          <div id="draw-settings" class="draw-settings hidden">
-            <label>
-              <span>Brush width</span>
-              <input id="brush-width" type="range" min="1" max="7" value="4">
-            </label>
-            <div class="brush-colors" aria-label="Brush colors">
-              <button class="brush-color active" type="button" data-brush-color="#f0d66a" style="--swatch: #f0d66a" title="Pathing"></button>
-              <button class="brush-color" type="button" data-brush-color="#ef4b5c" style="--swatch: #ef4b5c" title="Danger"></button>
-              <button class="brush-color" type="button" data-brush-color="#36a3ff" style="--swatch: #36a3ff" title="Vision/control"></button>
-              <button class="brush-color" type="button" data-brush-color="#4fb879" style="--swatch: #4fb879" title="Safe movement"></button>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel-section">
-          <h2>Add</h2>
-          <div class="palette">
-            <details class="palette-group" open>
+    <aside class="sidebar left-panel" aria-label="Build your play">
+      <div class="panel-intro"><p class="eyebrow">Build your play</p><h1>Set the stage.</h1><p>Place your team. Draw the plan.</p></div>
+      <section class="panel-section roster-section">
+        <div class="section-heading"><h2>Team roster</h2><span class="mini-label">5 roles</span></div>
+        <div class="team-tabs" role="group" aria-label="Team to add">
+          <button type="button" data-roster-team="blue" class="active" aria-pressed="true"><span class="team-dot blue"></span>Blue side</button>
+          <button type="button" data-roster-team="red" aria-pressed="false"><span class="team-dot red"></span>Red side</button>
+        </div>
+        <div class="roster-list">
+          <button type="button" data-roster-role="TOP" title="Add or select top laner"><span class="roster-role">TOP</span><span class="roster-label">Top lane</span><span class="roster-state"></span><svg class="icon small"><use href="#i-plus"/></svg></button>
+          <button type="button" data-roster-role="JGL" title="Add or select jungler"><span class="roster-role">JGL</span><span class="roster-label">Jungle</span><span class="roster-state"></span><svg class="icon small"><use href="#i-plus"/></svg></button>
+          <button type="button" data-roster-role="MID" title="Add or select mid laner"><span class="roster-role">MID</span><span class="roster-label">Mid lane</span><span class="roster-state"></span><svg class="icon small"><use href="#i-plus"/></svg></button>
+          <button type="button" data-roster-role="BOT" title="Add or select bot laner"><span class="roster-role">BOT</span><span class="roster-label">Bot lane</span><span class="roster-state"></span><svg class="icon small"><use href="#i-plus"/></svg></button>
+          <button type="button" data-roster-role="SUP" title="Add or select support"><span class="roster-role">SUP</span><span class="roster-label">Support</span><span class="roster-state"></span><svg class="icon small"><use href="#i-plus"/></svg></button>
+        </div>
+        <p class="field-hint">Click a role to place it. Drag to position.</p>
+      </section>
+      <section class="panel-section">
+        <div class="section-heading"><h2>Add to the map</h2></div>
+        <div class="quick-palette">
+          <button class="palette-item" type="button" draggable="true" data-add="ward" data-team="blue"><img src="assets/ward-blue.svg" alt=""><span>Ward</span></button>
+          <button class="palette-item" type="button" draggable="true" data-add="minion" data-team="blue"><img src="assets/minion-blue.svg" alt=""><span>Minion</span></button>
+          <button class="palette-item" type="button" draggable="true" data-add="champion" data-team="blue"><img src="assets/champion-blue.svg" alt=""><span>Champion</span></button>
+          <button class="palette-item" type="button" draggable="true" data-add="ping" data-team="neutral"><svg class="icon"><use href="#i-ping"/></svg><span>Marker</span></button>
+        </div>
+        <details class="more-objects"><summary>More objects</summary><div class="palette">
+            <details class="palette-group">
               <summary>Blue</summary>
               <button class="palette-item" draggable="true" data-add="champion" data-team="blue">
                 <img src="assets/champion-blue.svg" alt="">
@@ -211,29 +249,17 @@
                 <span>Baron</span>
               </button>
             </details>
-          </div>
-        </section>
-
-        <section class="panel-section">
-          <h2>View</h2>
-          <button id="home-view" class="secondary wide" type="button">Home view</button>
-          <label class="check-row">
-            <input id="toggle-grid" type="checkbox" checked>
-            <span>Grid</span>
-          </label>
-          <label class="check-row">
-            <input id="toggle-sight" type="checkbox">
-            <span>Sight overlay</span>
-          </label>
-          <label class="check-row">
-            <input id="toggle-ranges" type="checkbox" checked>
-            <span>Vision ranges</span>
-          </label>
-          <label class="check-row">
-            <input id="toggle-labels" type="checkbox" checked>
-            <span>Labels</span>
-          </label>
-          <div class="filter-grid" aria-label="Layer filters">
+          </div></details>
+      </section>
+      <details class="panel-section view-settings">
+        <summary>Map display</summary>
+        <div class="view-options">
+          <label class="check-row"><input id="toggle-grid" type="checkbox"><span>Grid</span></label>
+          <label class="check-row"><input id="toggle-sight" type="checkbox"><span>Sight overlay</span></label>
+          <label class="check-row"><input id="toggle-ranges" type="checkbox" checked><span>Vision ranges</span></label>
+          <label class="check-row"><input id="toggle-labels" type="checkbox" checked><span>Labels</span></label>
+          <p class="mini-label filter-label">Visible layers</p>
+          <div class="filter-grid" role="group" aria-label="Layer filters">
             <label><input type="checkbox" data-filter="blue" checked><span>Blue</span></label>
             <label><input type="checkbox" data-filter="red" checked><span>Red</span></label>
             <label><input type="checkbox" data-filter="neutral" checked><span>Neutral</span></label>
@@ -241,117 +267,80 @@
             <label><input type="checkbox" data-filter="minion" checked><span>Minions</span></label>
             <label><input type="checkbox" data-filter="drawings" checked><span>Drawings</span></label>
           </div>
-        </section>
-      </aside>
-
-      <main class="workspace">
-        <header class="topbar">
-          <div class="file-actions">
-            <div class="menu-button">
-              <button id="new-map" class="secondary">New</button>
-              <div id="new-menu" class="dropdown-menu hidden">
-                <button type="button" data-new-mode="default">New default setup</button>
-                <button type="button" data-new-mode="blank">New blank</button>
-              </div>
-            </div>
-            <button id="save-json" class="primary">Save Rift Diagram</button>
-            <button id="load-json" class="secondary">Load Rift Diagram</button>
-            <button id="export-png" class="secondary">Export PNG</button>
-            <input id="file-input" type="file" accept="application/json,.json" hidden>
-          </div>
-          <h2 id="document-title" class="document-title">Game Start</h2>
-          <div class="status">
-            <div class="zoom-presets" aria-label="Zoom presets">
-              <button type="button" data-zoom-preset="top">Top</button>
-              <button type="button" data-zoom-preset="rift">Rift</button>
-              <button type="button" data-zoom-preset="mid">Mid</button>
-              <button type="button" data-zoom-preset="dragon">Drag</button>
-              <button type="button" data-zoom-preset="bot">Bot</button>
-            </div>
-            <input id="zoom-input" class="zoom-input" type="number" min="25" max="1000" value="100" aria-label="Zoom percent">
-            <span>%</span>
-            <input id="zoom" type="range" min="25" max="1000" value="100" aria-label="Zoom">
-          </div>
-        </header>
-
-        <div class="canvas-wrap">
-          <div id="diagram" class="diagram" tabindex="0" aria-label="Rift diagram canvas">
-            <img class="map-bg" src="assets/sr.webp" alt="" draggable="false">
-            <img id="sight-layer" class="sight-layer hidden" src="assets/sr sight.jpeg" alt="" draggable="false">
-            <div id="grid-layer" class="grid-layer" aria-hidden="true"></div>
-            <svg id="draw-layer" class="draw-layer" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"></svg>
-            <div id="object-layer" class="object-layer"></div>
-          </div>
         </div>
-      </main>
+      </details>
+      <div class="sidebar-footer"><button id="help-button" class="help-button" type="button"><svg class="icon"><use href="#i-help"/></svg>Controls &amp; shortcuts<span class="keycap">?</span></button><span class="local-note">Your playbook stays on this device.</span></div>
+    </aside>
 
-      <aside class="sidebar right-panel" aria-label="Properties">
-        <section class="panel-section">
-          <h2>Selection</h2>
-          <div id="empty-state" class="empty-state">Select an item.</div>
-          <div id="properties" class="properties hidden">
-            <label>
-              <span>Label</span>
-              <input id="prop-label" type="text" maxlength="24">
-            </label>
-            <label>
-              <span>Size</span>
-              <input id="prop-size" type="range" min="1" max="8" value="3">
-            </label>
-            <label class="cloak-toggle">
-              <input id="prop-cloaked" type="checkbox">
-              <span>Cloaked</span>
-            </label>
-            <label>
-              <span>Vision</span>
-              <input id="prop-range" type="range" min="0" max="220" value="115">
-            </label>
-            <div class="segmented">
-              <button data-team-set="blue">Blue</button>
-              <button data-team-set="red">Red</button>
-              <button data-team-set="neutral">Neutral</button>
-            </div>
-          </div>
-          <div id="selection-bulk" class="selection-bulk hidden">
-            <button id="duplicate" class="secondary wide">Duplicate</button>
-            <button id="delete" class="danger wide">Delete</button>
-            <div class="selection-actions">
-              <button type="button" data-selection-action="align-x" title="Align horizontally">Align X</button>
-              <button type="button" data-selection-action="align-y" title="Align vertically">Align Y</button>
-              <button type="button" data-selection-action="distribute-x" title="Distribute horizontally">Dist X</button>
-              <button type="button" data-selection-action="distribute-y" title="Distribute vertically">Dist Y</button>
-              <button type="button" data-selection-action="front" title="Bring forward">Front</button>
-              <button type="button" data-selection-action="back" title="Send backward">Back</button>
-              <button type="button" data-selection-action="group" title="Group selected">Group</button>
-              <button type="button" data-selection-action="ungroup" title="Ungroup selected">Ungroup</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel-section">
-          <h2>Layers</h2>
-          <div id="layer-list" class="layer-list"></div>
-        </section>
-      </aside>
-    </div>
-
-    <div id="new-confirm-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="new-confirm-title">
-      <div class="modal">
-        <h2 id="new-confirm-title">Start a new map?</h2>
-        <p>Current tokens and drawn paths will be cleared.</p>
-        <div class="modal-actions">
-          <button id="new-cancel" class="secondary">Cancel</button>
-          <button id="new-save-proceed" class="primary">Save and Proceed</button>
-          <button id="new-proceed" class="danger">Proceed</button>
+    <main class="workspace" aria-label="Tactical map editor">
+      <div class="map-topbar">
+        <div class="scene-context"><span class="live-dot" aria-hidden="true"></span><span id="active-scene-title">The setup</span><span id="scene-counter" class="scene-counter">1 / 1</span></div>
+        <div class="zoom-presets" role="group" aria-label="Focus map region"><span class="mini-label">Focus</span><button type="button" data-zoom-preset="top">Top</button><button type="button" data-zoom-preset="rift">Baron</button><button type="button" data-zoom-preset="mid">Mid</button><button type="button" data-zoom-preset="dragon">Dragon</button><button type="button" data-zoom-preset="bot">Bot</button></div>
+      </div>
+      <div class="canvas-wrap">
+        <div id="diagram" class="diagram hide-grid" tabindex="0" role="region" aria-label="Tactical map. Select and drag champions, or choose a drawing tool.">
+          <img class="map-bg" src="assets/sr.webp" alt="Summoner's Rift" draggable="false">
+          <img id="sight-layer" class="sight-layer hidden" src="assets/sr sight.jpeg" alt="" draggable="false">
+          <div id="grid-layer" class="grid-layer" aria-hidden="true"></div>
+          <svg id="draw-layer" class="draw-layer" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div id="object-layer" class="object-layer"></div>
         </div>
       </div>
-    </div>
+      <div class="floating-tools">
+        <div class="tool-grid" role="toolbar" aria-label="Map tools">
+          <button type="button" class="tool-button active" data-tool="select" title="Select and move (S)" aria-label="Select and move (S)"><svg class="icon"><use href="#i-select"/></svg><span>Select</span><kbd>S</kbd></button>
+          <button type="button" class="tool-button" data-tool="arrow" title="Draw an arrow (A)" aria-label="Draw an arrow (A)"><svg class="icon"><use href="#i-arrow"/></svg><span>Arrow</span><kbd>A</kbd></button>
+          <button type="button" class="tool-button" data-tool="draw" title="Freehand draw (D)" aria-label="Freehand draw (D)"><svg class="icon"><use href="#i-draw"/></svg><span>Draw</span><kbd>D</kbd></button>
+          <button type="button" class="tool-button" data-tool="erase" title="Erase (E)" aria-label="Erase (E)"><svg class="icon"><use href="#i-erase"/></svg><span>Erase</span><kbd>E</kbd></button>
+          <button type="button" class="tool-button" data-tool="pan" title="Pan map (H)" aria-label="Pan map (H)"><svg class="icon"><use href="#i-pan"/></svg><span>Pan</span><kbd>H</kbd></button>
+          <button type="button" class="tool-button" data-tool="ping" title="Point to the map (P)" aria-label="Point to the map (P)"><svg class="icon"><use href="#i-ping"/></svg><span>Ping</span><kbd>P</kbd></button>
+        </div>
+        <div id="draw-settings" class="draw-settings hidden"><label for="brush-width">Width</label><input id="brush-width" type="range" min="1" max="7" value="4" aria-label="Brush width"><div class="brush-colors" role="group" aria-label="Brush colors"><button class="brush-color active" type="button" data-brush-color="#f0d66a" style="--swatch:#f0d66a" title="Pathing yellow" aria-label="Pathing yellow"></button><button class="brush-color" type="button" data-brush-color="#ef4b5c" style="--swatch:#ef4b5c" title="Danger red" aria-label="Danger red"></button><button class="brush-color" type="button" data-brush-color="#36a3ff" style="--swatch:#36a3ff" title="Control blue" aria-label="Control blue"></button><button class="brush-color" type="button" data-brush-color="#4fb879" style="--swatch:#4fb879" title="Safe movement green" aria-label="Safe movement green"></button></div><button id="clear-drawings" class="clear-drawings" type="button" title="Clear arrows and drawings from this step"><svg class="icon small"><use href="#i-trash"/></svg>Clear routes</button></div>
+      </div>
+      <div class="canvas-bottom-bar"><span id="canvas-hint">Drag a champion to position it. Use arrows to show the play.</span><div class="canvas-controls"><div class="history-controls"><button id="undo-button" class="icon-button" type="button" title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="icon"><use href="#i-undo"/></svg></button><button id="redo-button" class="icon-button" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><svg class="icon"><use href="#i-redo"/></svg></button></div><button id="home-view" class="icon-button" type="button" title="Fit full map" aria-label="Fit full map"><svg class="icon"><use href="#i-fit"/></svg></button><input id="zoom" type="range" min="25" max="1000" value="100" aria-label="Map zoom"><label class="zoom-number"><input id="zoom-input" class="zoom-input" type="number" min="25" max="1000" value="100" aria-label="Zoom percent"><span>%</span></label></div></div>
+    </main>
 
-    <script src="assets/export-assets.js"></script>
-    <script src="assets/game-start-state.js"></script>
-    <script src="diagram-data.js"></script>
-    <script src="diagram-history.js"></script>
-    <script src="diagram-export.js"></script>
-    <script src="app.js"></script>
-  </body>
+    <aside class="sidebar right-panel" aria-label="Step details and selection">
+      <section class="panel-section scene-details">
+        <div class="section-heading"><p class="eyebrow">Tell the story</p><span class="mini-label">This step</span></div>
+        <label class="field-label" for="scene-title">Step title</label><input id="scene-title" type="text" maxlength="80" placeholder="e.g. Set up vision">
+        <label class="field-label" for="scene-note">Coaching note</label><textarea id="scene-note" rows="5" maxlength="2000" placeholder="What should the team focus on?"></textarea>
+        <p class="field-hint">Shown to your team in Present mode.</p>
+      </section>
+      <section class="panel-section selection-section">
+        <div class="section-heading"><h2>Selection</h2><span class="mini-label">Fine-tune</span></div>
+        <div id="empty-state" class="empty-state"><svg class="icon"><use href="#i-select"/></svg><span>Select a champion or object<br>to adjust its details.</span></div>
+        <div id="properties" class="properties hidden">
+          <label><span>Label</span><input id="prop-label" type="text" maxlength="24" placeholder="Add a label"></label>
+          <div class="segmented" role="group" aria-label="Selected object team"><button type="button" data-team-set="blue">Blue</button><button type="button" data-team-set="red">Red</button><button type="button" data-team-set="neutral">Neutral</button></div>
+          <details class="selection-details"><summary>Size &amp; vision</summary><div class="properties advanced-properties"><label><span>Size</span><input id="prop-size" type="range" min="1" max="8" value="3"></label><label><span>Vision range</span><input id="prop-range" type="range" min="0" max="220" value="115"></label><label class="check-row"><input id="prop-cloaked" type="checkbox"><span>Cloaked</span></label></div></details>
+        </div>
+        <div id="selection-bulk" class="selection-bulk hidden"><div class="selection-primary"><button id="duplicate" class="secondary" type="button"><svg class="icon small"><use href="#i-copy"/></svg>Duplicate</button><button id="delete" class="danger" type="button"><svg class="icon small"><use href="#i-trash"/></svg>Delete</button></div><details class="selection-details"><summary>Arrange &amp; group</summary><div class="selection-actions"><button type="button" data-selection-action="align-x" title="Align horizontally">Align X</button><button type="button" data-selection-action="align-y" title="Align vertically">Align Y</button><button type="button" data-selection-action="distribute-x" title="Distribute horizontally">Space X</button><button type="button" data-selection-action="distribute-y" title="Distribute vertically">Space Y</button><button type="button" data-selection-action="front">To front</button><button type="button" data-selection-action="back">To back</button><button type="button" data-selection-action="group">Group</button><button type="button" data-selection-action="ungroup">Ungroup</button></div></details></div>
+      </section>
+      <details class="panel-section layers-section"><summary>Objects &amp; layers</summary><div id="layer-list" class="layer-list"></div></details>
+      <div class="story-tip"><span class="mini-label">A good play has a next step.</span><p>Set the positions, add an arrow, then use <strong>Next step</strong> to build the sequence.</p></div>
+    </aside>
+
+    <section class="scene-strip" aria-label="Play sequence">
+      <div class="scene-strip-header"><div class="sequence-heading"><h2>Play sequence</h2><span class="mini-label">One idea. Step by step.</span></div><div class="scene-actions"><button id="play-button" class="text-button" type="button" title="Preview the sequence"><svg class="icon small"><use href="#i-play"/></svg>Play</button><span class="action-divider" aria-hidden="true"></span><button id="previous-scene" class="icon-button" type="button" title="Previous step" aria-label="Previous step"><svg class="icon small"><use href="#i-back"/></svg></button><button id="next-scene" class="icon-button" type="button" title="Next step" aria-label="Next step"><svg class="icon small"><use href="#i-next"/></svg></button><button id="add-scene" class="next-step-button" type="button"><svg class="icon small"><use href="#i-plus"/></svg>Next step</button></div></div>
+      <div class="scene-track"><div id="scene-list" class="scene-list" role="group" aria-label="Steps"></div><div class="scene-edit-actions" role="group" aria-label="Manage current step"><button id="duplicate-scene" class="icon-button" type="button" title="Duplicate step" aria-label="Duplicate step"><svg class="icon small"><use href="#i-copy"/></svg></button><button id="scene-back" class="icon-button" type="button" title="Move step earlier" aria-label="Move step earlier"><svg class="icon small"><use href="#i-back"/></svg></button><button id="scene-forward" class="icon-button" type="button" title="Move step later" aria-label="Move step later"><svg class="icon small"><use href="#i-next"/></svg></button><button id="delete-scene" class="icon-button danger-text" type="button" title="Delete step" aria-label="Delete step"><svg class="icon small"><use href="#i-trash"/></svg></button></div></div>
+    </section>
+  </div>
+
+  <section id="presentation-bar" class="presentation-bar" aria-label="Presentation controls">
+    <div class="presentation-copy"><span id="presentation-counter" class="eyebrow">Step 1 of 1</span><h2 id="presentation-title">The setup</h2><p id="presentation-note"></p></div>
+    <div class="presentation-controls"><button type="button" class="secondary" data-present-action="previous" aria-label="Previous step"><svg class="icon"><use href="#i-back"/></svg></button><button type="button" class="primary" data-present-action="next">Next step<svg class="icon"><use href="#i-next"/></svg></button><button type="button" class="text-button" data-present-action="exit">Exit<span class="keycap">Esc</span></button></div>
+  </section>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="shortcuts-dialog" class="shortcuts-dialog"><div class="dialog-heading"><div><p class="eyebrow">Make the map your whiteboard</p><h2>A few useful controls.</h2></div><button type="button" class="icon-button" data-close-help aria-label="Close help"><svg class="icon"><use href="#i-close"/></svg></button></div><dl class="shortcut-list"><div><dt>Select &amp; move</dt><dd><kbd>S</kbd></dd></div><div><dt>Draw an arrow</dt><dd><kbd>A</kbd></dd></div><div><dt>Freehand draw</dt><dd><kbd>D</kbd></dd></div><div><dt>Erase</dt><dd><kbd>E</kbd></dd></div><div><dt>Pan map</dt><dd><kbd>H</kbd></dd></div><div><dt>Point to a position</dt><dd><kbd>P</kbd></dd></div><div><dt>Undo / redo</dt><dd><kbd>Ctrl Z</kbd> / <kbd>Ctrl Shift Z</kbd></dd></div><div><dt>Select multiple</dt><dd><kbd>Shift</kbd> + click</dd></div><div><dt>Delete selected</dt><dd><kbd>Delete</kbd></dd></div><div><dt>Present / exit</dt><dd><kbd>F</kbd> / <kbd>Esc</kbd></dd></div><div><dt>Step through a presentation</dt><dd><kbd>←</kbd> / <kbd>→</kbd></dd></div><div><dt>Play / pause in Present</dt><dd><kbd>Space</kbd></dd></div></dl><p class="dialog-tip">Build the first position. Add a next step to keep the same pieces and show what changes. Present to walk your team through the play.</p></dialog>
+  <div id="new-confirm-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="new-confirm-title"><div class="modal"><p class="eyebrow">Start a fresh play</p><h2 id="new-confirm-title">Save this play before starting?</h2><p>Your current sequence will be replaced. Save a copy to come back to it later.</p><div class="modal-actions"><button id="new-cancel" class="secondary" type="button">Cancel</button><button id="new-proceed" class="secondary" type="button">Start fresh</button><button id="new-save-proceed" class="primary" type="button">Save &amp; start</button></div></div></div>
+  <script src="assets/export-assets.js"></script>
+  <script src="assets/game-start-state.js"></script>
+  <script src="diagram-data.js"></script>
+  <script src="diagram-history.js"></script>
+  <script src="diagram-export.js"></script>
+  <script src="playbook-data.js"></script>
+  <script src="app.js"></script>
+  <script src="playbook-ui.js"></script>
+</body>
 </html>

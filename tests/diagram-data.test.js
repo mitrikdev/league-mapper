@@ -183,3 +183,30 @@ test("imported labels remain literal text in the layer list, including an XSS pa
   assert.equal(row.children[0].dataset.layerAction, "visibility");
   assert.equal(context.attacked, undefined);
 });
+
+test("optional roles and directional arrows survive normalization and saved-file round trips", () => {
+  const legacy = normalize(fixture());
+  assert.equal(Object.hasOwn(legacy.items[0], "role"), false);
+  assert.equal(Object.hasOwn(legacy.paths[0], "arrow"), false);
+  for (const role of ["TOP", "JGL", "MID", "BOT", "SUP"]) {
+    for (const arrow of [true, false]) {
+      const input = fixture({ type: "champion", role, label: role });
+      input.paths[0].arrow = arrow;
+      const normalized = normalize(input);
+      assert.equal(normalized.items[0].role, role);
+      assert.equal(normalized.paths[0].arrow, arrow);
+      assert.deepEqual(normalize(JSON.parse(JSON.stringify(normalized))), normalized);
+    }
+  }
+});
+
+test("invalid role names and non-boolean directional-arrow flags reject the whole diagram", () => {
+  for (const role of [null, 0, true, "", "top", "ADC", "JUNGLE", [], {}]) {
+    assert.throws(() => normalize(fixture({ role })), /role/);
+  }
+  for (const arrow of [null, 0, 1, "true", [], {}]) {
+    const input = fixture();
+    input.paths[0].arrow = arrow;
+    assert.throws(() => normalize(input), /arrow/);
+  }
+});
